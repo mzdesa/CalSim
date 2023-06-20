@@ -213,3 +213,24 @@ def calc_adjoint(g):
     upperBlocks = np.hstack((R, hat(p)@R))
     lowerBlocks = np.hstack((np.zeros((3, 3)), R))
     return np.vstack((upperBlocks, lowerBlocks))
+
+def calc_poe(twist_list, theta_list):
+    """
+    Compute the product of exponentials:
+    exp(xi_1*theta_1)*exp(xi_2*theta_2)...*exp(xi_n*theta_n)
+    Inputs:
+        twist_list (list of Twist objects)
+        theta_list (list of angles)
+    Returns:
+        g_theta (4x4 NumPy Array): SE(3) transformation exp(xi_1*theta_1)*...*exp(xi_n*theta_n)
+    """
+    #initialize transformation
+    g_theta = np.eye(4)
+
+    #compute the transformation using POE
+    for i in range(len(twist_list)):
+        xi_i = twist_list[i]
+        g_theta = g_theta @ xi_i.exp(theta_list[i])
+    
+    return g_theta
+    

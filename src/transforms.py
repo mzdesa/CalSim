@@ -146,3 +146,70 @@ def quat_2_rot(Q):
                   [2*b*c + 2*a*d, a**2 - b**2 + c**2 - d**2, 2*c*d - 2*a*b], 
                   [2*b*d - 2*a*c, 2*c*d + 2*a*b, a**2 - b**2 - c**2 + d**2]])
     return R
+
+def exp_twist(xi, theta):
+    """
+    Calculate the matrix exponential of a unit twist, xi
+    Inputs:
+        xi (6x1 NumPy Array): unit twist
+        theta (float): magnitude of transformation
+    Returns:
+        exp(xi_hat*theta) (4x4 NumPy Array): SE(3) transformation
+    """
+    #reshape xi
+    xi = xi.reshape((6, 1))
+
+    #extract v and omega
+    v = xi[0:3].reshape((3, 1))
+    w = xi[3:].reshape((3, 1))
+
+    #compute exponential
+    if np.linalg.norm(w) == 0:
+        #case of zero omega
+        R = np.eye(3)
+        p = v*theta
+    else:
+        #case of nonzero omega
+        R = rodrigues(w, theta)
+        p = (np.eye(3) - R)@(hat(w) @ v) + w @ w.T @ v * theta
+    
+    #compute the blocks of the transformation
+    expXi = np.hstack((R, p))
+    expXi = np.vstack((expXi, np.array([[0, 0, 0, 1]])))
+    return expXi
+
+def exp_transform(x, theta):
+    """
+    Computes an SO(3) or SE(3) transformation of a unit axis/twist x with 
+    magnitude theta using the closed forms of the matrix exponential.
+    Inputs:
+        x (3x1 or 6x1 NumPy Array): axis or twist
+        theta (scalar): magnitude of transformation
+    Returns:
+        g (4x4 NumPy Array) or R (3x3 NumPy Array): SE(3) or SO(3) transformation
+    """
+    if x.length == 3:
+        #return SO(3) transformation
+        return rodrigues(x, theta)
+    elif x.length == 6:
+        #return SE(3) transformation
+        return exp_twist(x, theta)
+    else:
+        raise ShapeError()
+
+def calc_adjoint(g):
+    """
+    Calculate the adjoint matrix of a transformation g in SE(3)
+    Inputs:
+        g (4x4 NumPy Array): SE(3) transformation matrix
+    Returns:
+        Adg (6x6 NumPy Array): Adjoint of the transformation
+    """
+    #extract the rotation matrix
+    R = g[0:3, 0:3]
+    p = g[0:3, 3]
+
+    #compute the blocks of the adjoint
+    upperBlocks = np.hstack((R, hat(p)@R))
+    lowerBlocks = np.hstack((np.zeros((3, 3)), R))
+    return np.vstack((upperBlocks, lowerBlocks))

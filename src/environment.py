@@ -1,7 +1,9 @@
 import numpy as np
+from controller import ControllerManager, Controller
+from state_estimation import ObserverManager
 
 class Environment:
-    def __init__(self, dynamics, controller, observer, T = 10):
+    def __init__(self, dynamics, controller = None, observer = None, T = 10):
         """
         Initializes a simulation environment
         Args:
@@ -12,8 +14,18 @@ class Environment:
         """
         #store system parameters
         self.dynamics = dynamics
-        self.controller = controller
-        self.observer = observer
+
+        #if observer and controller are none, create default objects
+        if observer is not None:
+            self.observer = observer
+        else:
+            #create a default noise-free observer manager
+            self.observer = ObserverManager(dynamics)
+        if controller is not None:
+            self.controller = controller
+        else:
+            #create a default zero input controller manager (using the skeleton Controller class)
+            self.controller = ControllerManager(self.observer, None, None, None, Controller)
         
         #define environment parameters
         self.iter = 0 #number of iterations
@@ -33,8 +45,8 @@ class Environment:
         self.TOTAL_SIM_TIME = T #total simulation time in s
         
         #Define history arrays
-        self.xHist = np.zeros((self.dynamics.stateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
-        self.uHist = np.zeros((self.dynamics.inputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
+        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
+        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
         self.tHist = np.zeros((1, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
         
     def reset(self):
@@ -51,8 +63,8 @@ class Environment:
         self.xObsv = None #reset observer state
         
         #Define history arrays
-        self.xHist = np.zeros((self.dynamics.stateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
-        self.uHist = np.zeros((self.dynamics.inputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
+        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
+        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
         self.tHist = np.zeros((1, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
 
     def step(self):
@@ -78,8 +90,8 @@ class Environment:
         Update history arrays and deterministic state data
         """
         #append the input, time, and state to their history queues
-        self.xHist[:, self.iter] = self.x.reshape((self.dynamics.stateDimn, ))
-        self.uHist[:, self.iter] = (self.controller.get_input()).reshape((self.dynamics.inputDimn, ))
+        self.xHist[:, self.iter] = self.x.reshape((self.dynamics.sysStateDimn, ))
+        self.uHist[:, self.iter] = (self.controller.get_input()).reshape((self.dynamics.sysInputDimn, ))
         self.tHist[:, self.iter] = self.t
         
         #update the actual state of the system
@@ -133,3 +145,4 @@ class Environment:
         Provide visualization of the environment
         """
         self.dynamics.show_animation(self.xHist, self.uHist, self.tHist)
+        self.dynamics.show_plots(self.xHist, self.uHist, self.tHist)

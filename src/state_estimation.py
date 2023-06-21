@@ -43,6 +43,7 @@ class EgoObserver(StateObserver):
 
         #store the state dimension of an individual agent
         self.singleStateDimn = dynamics.singleStateDimn
+        self.singleInputDimn = dynamics.singleInputDimn
     
     def get_state(self):
         """
@@ -69,7 +70,7 @@ class EgoObserver(StateObserver):
     
     
 class ObserverManager:
-    def __init__(self, dynamics, mean, sd):
+    def __init__(self, dynamics, mean = None, sd = None):
         """
         Managerial class to manage the observers for a system of N turtlebots
         Args:

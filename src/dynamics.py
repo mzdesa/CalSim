@@ -74,7 +74,7 @@ class Dynamics:
         #return the assembled derivative vector
         return xDot
     
-    def integrate(self, u, t, dt):
+    def euler_integrate(self, u, t, dt):
         """
         Integrates system dynamics using Euler integration
         Args:
@@ -92,6 +92,44 @@ class Dynamics:
 
         #return integrated state vector
         return self._x
+    
+    def rk4_integrate(self, u, t, dt):
+        """
+        Integrates system dynamics using RK4 integration
+        Args:
+            u (sysInputDimn x 1 numpy array): current input vector at time t
+            t (float): current time with respect to simulation start
+            dt (float): time step for integration
+        Returns:
+            x (sysStateDimn x 1 numpy array): state vector after integrating
+        """
+        #get current deterministic state
+        x = self.get_state()
+
+        #evaluate RK4 constants
+        k1 = self.deriv(x, u, t)
+        k2 = self.deriv(x + dt*k1/2, u, t + dt/2)
+        k3 = self.deriv(x + dt*k2/2, u, t + dt/2)
+        k4 = self.deriv(x + dt*k3, u, t + dt)
+
+        #update the state parameter
+        self._x = x + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+
+        #update the input parameter
+        self._u = u
+
+        #return the integrated state vector
+        return self._x
+    
+    def integrate(self, u, t, dt, integrator = "rk4"):
+        """
+        Integrate dynamics with either rk4 or euler integration
+        Choose either "rk4" or "euler" to select integrator.
+        """
+        if integrator == "rk4":
+            return self.rk4_integrate(u, t, dt)
+        else:
+            return self.euler_integrate(u, t, dt)
     
     def show_plots(self, xData, uData, tData):
         """
@@ -141,3 +179,12 @@ class Dynamics:
 PLACE YOUR DYNAMICS FUNCTIONS HERE
 **********************************
 """
+
+def double_integrator(x, u, t):
+    """
+    Double integrator dynamics
+        x (2x1 NumPy array): state vector
+        u (1x1 NumPy array): input vector
+        t (float): current time
+    """
+    return np.array([[0, 1], [0, 0]]) @ x + np.array([[0, 1]]).T @ u

@@ -22,7 +22,7 @@ class Controller:
         self.uBounds = uBounds
         
         #store input
-        self._u = None
+        self._u = np.zeros((self.observer.singleInputDimn, 1))
     
     def eval_input(self, t):
         """
@@ -30,9 +30,9 @@ class Controller:
         Inputs:
             t (float): time in simulation
         Returns:
-            u ((Dynamics.inputDimn x 1)): input vector, as determined by controller
+            u ((Dynamics.singleInputDimn x 1)): input vector, as determined by controller
         """
-        self._u = np.zeros((self.observer.inputDimn, 1))
+        self._u = np.zeros((self.observer.singleInputDimn, 1))
         return self._u
     
     def get_input(self):

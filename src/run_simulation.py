@@ -7,10 +7,10 @@ from sim_utils import *
 
 
 #define an initial condition
-q0 = np.array([[0, 1, 0, -1]]).T
+q0 = np.array([[0, 1]]).T
 
 #create a dynamics object for a single double integrator
-dynamics = Dynamics(q0, 2, 1, double_integrator, N = 2)
+dynamics = DoubleIntegratorDyn(q0)
 
 #create a simulation environment
 T = 10 #10 second simulation

@@ -131,20 +131,27 @@ class Dynamics:
         else:
             return self.euler_integrate(u, t, dt)
     
-    def show_plots(self, xData, uData, tData):
+    def show_plots(self, xData, uData, tData, stateLabels = None, inputLabels = None):
         """
         Function to show plots specific to this dynamic system.
         Args:
             xData ((sysStateDimn x N) numpy array): history of N states to plot
             uData ((sysInputDimn x N) numpy array): history of N inputs to plot
             tData ((1 x N) numpy array): history of N times associated with x and u
+            stateLabels ((singleStateDimn) length list of strings): Optional custom labels for the state plots
+            inputLabels ((singleInputDimn) length list of strings): Optional custom labels for the input plots
         """
         #Plot each state variable in time
         fig, axs = plt.subplots(self.singleStateDimn + self.singleInputDimn)
         fig.suptitle('Evolution of States and Inputs in Time')
         xlabel = 'Time (s)'
-        stateLabels = ["X" + str(i + 1) for i in range(self.singleStateDimn)]
-        inputLabels = ["U" + str(i + 1) for i in range(self.singleInputDimn)]
+
+        #set state and input labels
+        if stateLabels is None:
+            stateLabels = ["X" + str(i + 1) for i in range(self.singleStateDimn)]
+        if inputLabels is None:
+            inputLabels = ["U" + str(i + 1) for i in range(self.singleInputDimn)]
+
         #plot the states for each agent
         for j in range(self.N):
             n = 0 #index in the subplot
@@ -153,17 +160,19 @@ class Dynamics:
                 axs[n].set(ylabel=stateLabels[n]) #pull labels from the list above
                 axs[n].grid()
                 n += 1
+
             #plot the inputs
             for i in range(self.singleInputDimn):
                 axs[i+self.singleStateDimn].plot(tData.reshape((tData.shape[1], )).tolist()[0:-1], uData[self.singleInputDimn*j + i, :].tolist()[0:-1])
                 axs[i+self.singleStateDimn].set(ylabel=inputLabels[i])
                 axs[i+self.singleStateDimn].grid()
+        
         axs[self.singleStateDimn + self.singleInputDimn - 1].set(xlabel = xlabel)
         legendList = ["Agent " + str(i) for i in range(self.N)]
         plt.legend(legendList)
         plt.show()
     
-    def show_animation(self, x, u, t):
+    def show_animation(self, xData, uData, tData):
         """
         Function to play animations specific to this dynamic system.
         Args:
@@ -180,11 +189,125 @@ PLACE YOUR DYNAMICS FUNCTIONS HERE
 **********************************
 """
 
-def double_integrator(x, u, t):
+class DoubleIntegratorDyn(Dynamics):
     """
-    Double integrator dynamics
-        x (2x1 NumPy array): state vector
-        u (1x1 NumPy array): input vector
-        t (float): current time
+    Single Double Integrator
     """
-    return np.array([[0, 1], [0, 0]]) @ x + np.array([[0, 1]]).T @ u
+    def __init__(self, x0):
+        #define the double integrator dynamics
+        def double_integrator(x, u, t):
+            """
+            Double integrator dynamics
+                x (2x1 NumPy array): state vector
+                u (1x1 NumPy array): input vector
+                t (float): current time
+            """
+            return np.array([[0, 1], [0, 0]]) @ x + np.array([[0, 1]]).T @ u
+        super().__init__(x0, 2, 1, double_integrator, N = 1)
+
+
+class TurtlebotSysDyn(Dynamics):
+    """
+    System of N Turtlebots
+    """
+    def __init__(self, x0, N = 3, rTurtlebot = 0.15):
+        """
+        Init function for a system of N turtlebots.
+        Args:
+            x0 (NumPy Array): (x1, y1, phi1, ..., xN, yN, phiN) initial condition for all N turtlebots
+            N (Int, optional): number of turtlebots in the system
+            rTurtlebot (float): radius of the turtlebots in the system
+        """
+
+        #define the turtlebot dynamics
+        def f_turtlebot(x, u, t):
+            #extract the orientation angle of the Nth turtlebot
+            PHI = x[2, 0]
+            return np.array([[np.cos(PHI), 0], [np.sin(PHI), 0], [0, 1]])@u
+
+        #call the super init function to create a turtlebot system
+        super().__init__(x0, 3, 2, f_turtlebot, N)
+
+        #store a copy of the augmented input vector for feedback linearization
+        self._z = np.zeros((self.sysInputDimn, 1))
+
+        #store the turtlebot radius
+        self.rTurtlebot = rTurtlebot 
+
+    def set_z(self, z, i):
+        """
+        Function to set the value of z, the augmented input vctor.
+        Inputs:
+            z ((2N x 1) NumPy Array): Augmented input vector
+            i (int): index we wish to place the updated z at
+        """
+        #store in class attribute
+        self._z[2*i : 2*i + 2, 0] = z.reshape((2, ))
+    
+    def get_z(self):
+        """
+        Function to return the augmented input vector, z, at any point.
+        """
+        #retrieve and return augmented input vector
+        return self._z
+    
+    def show_plots(self, xData, uData, tData):
+        #Plot the spatial trajectory of the turtlebots
+        fig, ax = plt.subplots()
+        ax.set_aspect("equal")
+        #iterate over each turtlebot state vector
+        for j in range(self.N):
+            xCoords = xData[3*j, :].tolist() #extract all of the velocity data to plot on the y axis
+            yCoords = xData[3*j+1, :].tolist() #remove the last point, get artefacting for some reason
+            ax.plot(xCoords[0:-1], yCoords[0:-1])
+        
+        legendList = ["Agent " + str(i) for i in range(self.N)]
+        plt.legend(legendList)
+        plt.xlabel("X Position (m)")
+        plt.ylabel("Y Position (m)")
+        plt.title("Positions of Turtlebots in Space")
+        plt.show()
+
+        #call the super plots with custom labels to show the individual states
+        stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Phi (rad)']
+        inputLabels = ["V (m/s)", "Omega (rad/s)"]
+        super().show_plots(xData, uData, tData, stateLabels, inputLabels)
+    
+    def show_animation(self, xData, uData, tData, animate = True):
+        """
+        Shows the animation and visualization of data for this system.
+        Args:
+            xData (stateDimn x N Numpy array): state vector history array
+            u (inputDimn x N numpy array): input vector history array
+            t (1 x N numpy array): time history
+            animate (bool, optional): Whether to generate animation or not. Defaults to True.
+        """
+        #Set constant animtion parameters
+        FREQ = 50 #control frequency, same as data update frequency
+        
+        if animate:
+            fig, ax = plt.subplots()
+            # set the axes limits
+            ax.axis([-0.25, 5.25, -0.25, 5.25])
+            # set equal aspect such that the circle is not shown as ellipse
+            ax.set_aspect("equal")
+            # create a set of points in the axes
+            points, = ax.plot([],[], marker="o", linestyle='None')
+            num_frames = xData.shape[1]-1
+                
+            def animate(i):
+                x = []
+                y = []
+                #get the x, y data associated with each turtlebot
+                for j in range(self.N):
+                    x.append(xData[3*j, i])
+                    y.append(xData[3*j+1, i])
+                points.set_data(x, y)
+                return points,
+            
+            anim = animation.FuncAnimation(fig, animate, frames=num_frames, interval=1/FREQ*1000, blit=True)
+
+            plt.xlabel("X Position (m)")
+            plt.ylabel("Y Position (m)")
+            plt.title("Positions of Turtlebots in Space")
+            plt.show()

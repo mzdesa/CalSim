@@ -13,7 +13,7 @@ class Controller:
             observer (Observer): state observer object
             lyapunov (List of LyapunovBarrier): list of LyapunovBarrier objects
             trajectory (Trajectory): trajectory for the controller to track (could just be a constant point!)
-            uBounds ((Dynamics.inputDimn x 2) numpy array): minimum and maximum input values to the system
+            uBounds ((Dynamics.singleInputDimn x 2) numpy array): minimum and maximum input values to the system
         """
         #store input parameters
         self.observer = observer

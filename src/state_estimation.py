@@ -11,8 +11,8 @@ class StateObserver:
             sd (float, optional): standard deviation for gaussian noise. Defaults to None.
         """
         self.dynamics = dynamics
-        self.stateDimn = dynamics.stateDimn
-        self.inputDimn = dynamics.inputDimn
+        self.sysStateDimn = dynamics.sysStateDimn
+        self.sysInputDimn = dynamics.sysInputDimn
         self.mean = mean
         self.sd = sd
         
@@ -22,69 +22,50 @@ class StateObserver:
         """
         if self.mean or self.sd:
             #return an observation of the vector with noise
-            return self.dynamics.get_state() + np.random.normal(self.mean, self.sd, (self.stateDimn, 1))
+            return self.dynamics.get_state() + np.random.normal(self.mean, self.sd, (self.sysStateDimn, 1))
         return self.dynamics.get_state()
     
-class EgoTurtlebotObserver(StateObserver):
+class EgoObserver(StateObserver):
     def __init__(self, dynamics, mean, sd, index):
         """
-        Init function for a state observer for a single turtlebot within a system of N turtlebots
+        Init function for a state observer for a single agent within a system of N agents
         Args:
-            dynamics (Dynamics): Dynamics object for the entire turtlebot system
+            dynamics (Dynamics): Dynamics object for the entir system
             mean (float): Mean for gaussian noise. Defaults to None.
             sd (float): standard deviation for gaussian noise. Defaults to None.
-            index (Integer): index of the turtlebot in the system
+            index (int): index of the agent in the system
         """
         #initialize the super class
         super().__init__(dynamics, mean, sd)
 
-        #store the index of the turtlebot
+        #store the index of the agent
         self.index = index
+
+        #store the state dimension of an individual agent
+        self.singleStateDimn = dynamics.singleStateDimn
     
     def get_state(self):
         """
         Returns a potentially noisy measurement of the state vector of the ith turtlebot
         Returns:
-            3x1 numpy array, observed state vector of the ith turtlebot in the system (zero indexed)
+            (Dynamics.singleStateDimn x 1 NumPy array), observed state vector of the ith turtlebot in the system (zero indexed)
         """
-        return super().get_state()[3*self.index : 3*self.index + 3].reshape((3, 1))
+        return super().get_state()[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
     
     def get_vel(self):
         """
-        Returns a potentially noisy measurement of the derivative of the state vector of the ith turtlebot
-        Inputs:
-            None
+        Returns a potentially noisy measurement of the derivative of the state vector of the ith agent
         Returns:
-            3x1 numpy array, observed derivative of the state vector of the ith turtlebot in the system (zero indexed)
+            (Dynamics.singleStateDimn x 1 NumPy array): observed derivative of the state vector of the ith turtlebot in the system (zero indexed)
         """
-        #first, get the current input to the system of turtlebots
+        #first, get the current input to the system
         u = self.dynamics.get_input()
 
         #now, get the noisy measurement of the entire state vector
         x = self.get_state()
-
-        #to pass into the deriv function, augment x with zeros elsewhere
-        x = np.vstack((np.zeros((self.index*3, 1)), x, np.zeros(((self.dynamics.N - 1 - self.index)*3, 1))))
         
         #calculate the derivative of the ith state vector using the noisy state measurement
-        xDot = self.dynamics.deriv(x, u, 0) #pass in zero for the time (placeholder for time invar system)
-
-        #slice out the derivative of the ith turtlebot and reshape
-        return xDot[3*self.index : 3*self.index + 3].reshape((3, 1))
-    
-    def get_z(self):
-        """
-        Return the augmented input vector, z, of the system from the ith turtlebot.
-        Inputs:
-            None
-        Returns:
-            z (2x1 NumPy Array): augmented input vector of the ith turtlebot
-        """
-        #call the get z function from the system dynamics
-        z = self.dynamics.get_z()
-
-        #slice out the ith term
-        return z[2*self.index : 2*self.index + 2].reshape((2, 1))
+        return self.dynamics._f(x, u, 0) #pass in zero for the time (placeholder for time invar system)
     
     
 class ObserverManager:
@@ -107,7 +88,7 @@ class ObserverManager:
         #create N observer objects
         for i in range(self.dynamics.N):
             #create an observer with index i
-            self.observerDict[i] = EgoTurtlebotObserver(dynamics, mean, sd, i)
+            self.observerDict[i] = EgoObserver(dynamics, mean, sd, i)
 
     def get_observer_i(self, i):
         """

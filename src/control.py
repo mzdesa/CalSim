@@ -2,6 +2,7 @@
 This file contains utilities for control design.
 """
 import numpy as np
+from scipy.signal import find_peaks
 
 def ctrb(A, B):
     """
@@ -28,11 +29,11 @@ def obsv(A, C):
     Returns:
         [C; CA; CA^2; ...; CA^n-1]
     """
-    #initialize controllabiity matrix as B
+    #initialize observability matrix as C
     O = C
     for i in range(1, A.shape[0]):
         P = np.vstack((P, C @ np.linalg.matrix_power(A, i)))
-    #return controllability matrix
+    #return observability matrix
     return O
 
 def is_ctrb(A, B):
@@ -96,3 +97,182 @@ def place_poles(A, B, pole_list):
 
     #return the gain
     return rowVec @ np.linalg.pinv(Wr) @ Wrt
+
+def calc_first_peak(yData):
+    """
+    Function to find first peak and their indices of a signal yData.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+    Returns
+        yPeaks (m x 1 NumPy Array): vector of first peak values
+        yPeakIndices (m x 1 NumPy Array): vector of indices of the first peaks
+    """
+    #reshape yData to have two dimensions
+    if len(yData.shape) == 1:
+        #reshape yData to be a row vector
+        yData = yData.reshape((1, yData.shape[0]))
+
+    #initialize an empty peak and peak index array
+    yPeaks = []
+    yPeakIndices = []
+    
+    for i in range(yData.shape[0]):
+        #slice out the row of outputs
+        yiData = yData[i, :]
+
+        #find the indices of the local maxima in yData -> take the first local maximum
+        peakIndices, _ = find_peaks(yiData)
+
+        #append the value of y at the first peak index
+        yPeaks.append(yiData[peakIndices[0]])
+
+        #append the first peak index
+        yPeakIndices.append(peakIndices[0])
+
+    #convert to NumPy Arrays and return
+    return np.array([yPeaks]).T, np.array([yPeakIndices]).T
+
+def calc_peak_time(yData, tData):
+    """
+    Function to calculate the peak time of a system's output. Note: this function 
+    will generally only converge for step responses for linear systems. It is designed
+    around a typical linear second order response for a stable system.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+        tData (1 x N NumPy Array): time series corresponding to yData
+    Returns:
+        Tp (m x 1 NumPy array): Peak time for each output
+    """    
+    #calculate the indices of the peaks
+    _, peakIndices = calc_first_peak(yData)
+
+    #initialize an empty rise time array
+    riseTimeArr = []
+
+    #find the times associated with the first peaks
+    for i in range(peakIndices.shape[0]):
+        #get the time associated with the peak index
+        riseTimeArr.append(tData[peakIndices[i, 0]])
+
+    #convert riseTimeArray to a NumPy array and return
+    return np.array([riseTimeArr]).T
+
+def calc_rise_time(yData, tData):
+    """
+    Function to calculate the rise time of a system's output, i.e. the time 
+    it takes for the response to go from 10% to 90% of its SS value.
+    Note: this function will generally only converge for step responses for linear systems. 
+    It is designed around a typical linear second order response for a stable system.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+        tData (1 x N NumPy Array): time series corresponding to yData
+    Returns:
+        Tr (m x 1 NumPy array): Rise time for each output
+    """    
+
+def calc_ss_value(yData):
+    """
+    Function to estimate the steady state value of a signal. This will only return a 
+    good estimate if the settling time has been reached within tData and the response is stable.
+    Returns the vector of final values of the signal.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+    Returns
+        ySS (m x 1 NumPy Array): vector of final output values
+    """
+    #reshape yData to have two dimensions
+    if len(yData.shape) == 1:
+        #reshape yData to be a row vector
+        yData = yData.reshape((1, yData.shape[0]))
+
+    #slice out last column in yData and return
+    return yData[:, -1].reshape((yData.shape[0], 1))
+
+def calc_percent_os(yData, tData):
+    """
+    Function to calculate the percent overshoot of a system's output. Note: this function 
+    will generally only converge for step responses for linear systems. It is designed
+    around a typical linear second order response for a stable system.
+    For this function to work, it is important that y has settled to its SS response at the end of tData.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+        tData (1 x N NumPy Array): time series corresponding to yData
+    Returns:
+        %OS (m x 1 NumPy array): Percent overshoot (from 0 to 100) for each output
+    """    
+    #calculate the peak values
+    peakArray, _ = calc_first_peak(yData)
+
+    #calculate the steady state values
+    ssArray = calc_ss_value(yData)
+
+    #find the percent overshoot for each element and return
+    return 100*np.divide(peakArray - ssArray, ssArray)
+
+def settling_time_helper(y, yss):
+    """
+    Helper function for settling time. Checks if the +-2% condition is broken for an output value y & SS value yss
+    Inputs:
+        y (float): scalar output value to evaluate
+        yss (float): steady state value
+    Returns:
+        True/False (boolean): if condition has been broken or not for this particular y
+    """
+    checkVal = abs((y-yss)/yss)
+    return (0.98 <= checkVal) and (checkVal <= 1.02)
+
+def calc_settling_time(yData, tData):
+    """
+    Function to calculate the settling time of a response, i.e. the time to get and stay within +-2% of the SS value.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+        tData (1 x N NumPy Array): time series corresponding to yData
+    Returns:
+        Ts (m x 1 NumPy array): Settling time for each output
+    """
+    #reshape yData to have two dimensions
+    if len(yData.shape) == 1:
+        #reshape yData to be a row vector
+        yData = yData.reshape((1, yData.shape[0]))
+
+    #calculate SS values
+    ySS = calc_ss_value(yData)
+
+    #initialize an empty settling time array
+    TsArr = [0]*ySS.shape[0]
+
+    #search for +-2% index. If none is found, will simply return the final index.
+    for i in range(ySS.shape[0]):
+        #move backwards through each time series from the end to the beginning
+        for j in range(reversed(yData.shape[1])):
+            #Add the time to TsArray
+            TsArr[i] = tData[j]
+            #evaluate if this particular timestep satisfies the +-2% condition
+            if not settling_time_helper(yData[i, j], ySS[i]):
+                #break the inner loop
+                break
+    #convert to NumPy array and return
+    return np.array([TsArr]).T
+
+def response_info(yData, tData):
+    """
+    Master function to provide information about the response of the system. Prints and returns
+    specifications about the response contained in yData.
+    Inputs:
+        yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
+        tData (1 x N NumPy Array): time series corresponding to yData
+    Returns:
+        Tr, Ts, OS, Tp: Rise time, Settling Time, Percent Overshoot, Peak Time NumPy arrays
+    """
+
+    Ts = calc_settling_time(yData, tData)
+    OS = calc_percent_os(yData, tData)
+    Tp = calc_peak_time(yData, tData)
+
+    #print the response information
+    print("Settling Time (s):", Ts.T)
+    print("Percent Overshoot (%)", OS.T)
+    print("Peak Time (s): ", Tp.T)
+
+    #return the response information
+    return Ts, OS, Tp

@@ -142,7 +142,7 @@ def calc_peak_time(yData, tData):
         tData (1 x N NumPy Array): time series corresponding to yData
     Returns:
         Tp (m x 1 NumPy array): Peak time for each output
-    """    
+    """
     #calculate the indices of the peaks
     _, peakIndices = calc_first_peak(yData)
 
@@ -233,7 +233,7 @@ def calc_rise_time(yData, tData):
     #return the rise time array
     return np.array([TrArr]).T
 
-def calc_percent_os(yData, tData):
+def calc_percent_os(yData):
     """
     Function to calculate the percent overshoot of a system's output. Note: this function 
     will generally only converge for step responses for linear systems. It is designed
@@ -241,7 +241,6 @@ def calc_percent_os(yData, tData):
     For this function to work, it is important that y has settled to its SS response at the end of tData.
     Inputs:
         yData (m x N NumPy Array): time series output of the system (rows are outputs, columns are at different time steps)
-        tData (1 x N NumPy Array): time series corresponding to yData
     Returns:
         %OS (m x 1 NumPy array): Percent overshoot (from 0 to 100) for each output
     """    
@@ -312,7 +311,7 @@ def response_info(yData, tData):
     #calculate the response specifications
     Tr = calc_rise_time(yData, tData)
     Ts = calc_settling_time(yData, tData)
-    Overshoot = calc_percent_os(yData, tData)
+    Overshoot = calc_percent_os(yData)
     Tp = calc_peak_time(yData, tData)
 
     #print the response information

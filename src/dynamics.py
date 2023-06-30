@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
+import seaborn as sns
 
 class Dynamics:
     """
@@ -32,6 +33,10 @@ class Dynamics:
         #store the state and input
         self._x = x0
         self._u = np.zeros((self.sysInputDimn, 1))
+
+        #set the plotting style with seaborn
+        sns.set_theme()
+        sns.set_context("paper")
 
     def get_input(self):
         """
@@ -191,9 +196,10 @@ PLACE YOUR DYNAMICS FUNCTIONS HERE
 
 class DoubleIntegratorDyn(Dynamics):
     """
-    Single Double Integrator
+    Double Integrator System
+    May initialize N integrators to run in parallel.
     """
-    def __init__(self, x0):
+    def __init__(self, x0, N = 1):
         #define the double integrator dynamics
         def double_integrator(x, u, t):
             """
@@ -203,14 +209,48 @@ class DoubleIntegratorDyn(Dynamics):
                 t (float): current time
             """
             return np.array([[0, 1], [0, 0]]) @ x + np.array([[0, 1]]).T @ u
-        super().__init__(x0, 2, 1, double_integrator, N = 1)
+        super().__init__(x0, 2, 1, double_integrator, N = N)
+
+class MSDRamp(Dynamics):
+    """
+    Mass-spring-damper system on a ramp.
+    """
+    def __init__(self, x0, m = 0.5, g = 9.81, k = 15, b = 0.5, theta = np.pi/6, N = 1):
+        """
+        Inputs:
+            x0 (2x1 NumPy Array): Initial condition
+            m (float): mass in kg
+            g (float): acceleration due to gravity (m/s^2)
+            k (float): spring constant (N/m)
+            b (float): damping constant (N/(m/s))
+            theta (float): angle of ramp
+            N (int): number of agents
+        """
+        self.m = m
+        self.g = g
+        self.k = k
+        self.b = b
+        self.theta = theta
+
+        def msd_ramp(x, u, t):
+            """
+            Mass spring damper ramp dynamics
+            Inputs:
+                x (2x1 NumPy array): current state vector
+                u (1x1 NumPy Array): force applied to mass (typically 0)
+                t (float): current time in simulation
+            """
+            return np.array([[x[1, 0]], [u[0, 0]/m -k/m * x[0, 0] - b/m * x[1, 0] - g*np.sin(theta)]])
+        
+        #call the init function on the MSD ramp system
+        super().__init__(x0, 2, 1, msd_ramp, N = N)
 
 
 class TurtlebotSysDyn(Dynamics):
     """
     System of N Turtlebots
     """
-    def __init__(self, x0, N = 3, rTurtlebot = 0.15):
+    def __init__(self, x0, N = 1, rTurtlebot = 0.15):
         """
         Init function for a system of N turtlebots.
         Args:

@@ -2,7 +2,7 @@
 This file includes various classes and functions involved in rigid body transformations.
 """
 import numpy as np
-from exceptions import *
+from .exceptions import *
 
 def hat_3d(w):
     """

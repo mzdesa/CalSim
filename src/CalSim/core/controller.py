@@ -1,6 +1,5 @@
 import numpy as np
-import casadi as ca
-from state_estimation import *
+from .state_estimation import *
 
 """
 File containing controllers 

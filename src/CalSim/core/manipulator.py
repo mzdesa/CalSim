@@ -3,8 +3,8 @@ This file contains utilities and classes associated with
 the kinematics of manipulator arms.
 """
 import numpy as np
-from exceptions import *
-from transforms import *
+from .exceptions import *
+from .transforms import *
 
 class Manipulator:
     """

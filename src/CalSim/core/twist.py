@@ -2,7 +2,7 @@
 This file implements the twist class.
 """
 import numpy as np
-from transforms import *
+from .transforms import *
 
 class Twist:
     def __init__(self, v, omega):

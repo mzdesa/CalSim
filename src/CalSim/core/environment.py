@@ -1,6 +1,6 @@
 import numpy as np
-from controller import ControllerManager, Controller
-from state_estimation import ObserverManager
+from .controller import ControllerManager, Controller
+from .state_estimation import ObserverManager
 
 class Environment:
     def __init__(self, dynamics, controller = None, observer = None, T = 10):

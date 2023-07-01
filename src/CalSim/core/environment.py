@@ -126,11 +126,14 @@ class Environment:
             return True
         return False
     
-    def run(self, N = 1):
+    def run(self, N = 1, run_vis = True):
         """
         Function to run the simulation N times
         Inputs:
             N (int): number of simulation examples to run
+            run_vis (bool): run the visualization of the results
+        Returns:
+            self.xHist, self.uHist, self.tHist
         """
         #loop over an overall simulation N times
         for i in range(N):
@@ -138,7 +141,10 @@ class Environment:
             while not self._is_done():
                 print("Simulation Time Remaining: ", self.TOTAL_SIM_TIME - self.t)
                 self.step() #step the environment while not done
-            self.visualize() #render the result
+            if run_vis:
+                self.visualize() #render the result
+        #return the history arrays
+        return self.xHist, self.uHist, self.tHist
             
     def visualize(self):
         """

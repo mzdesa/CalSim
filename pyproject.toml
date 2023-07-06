@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "CalSim"
-version = "0.0.3"
+version = "0.0.6"
 authors = [
   { name="Massimiliano de Sa", email="mz.desa@berkeley.edu" },
 ]
@@ -17,9 +17,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "numpy>=1.24.0",
-  "matplotlib>=3.7.0",
-  "seaborn>=0.12.0",
+  "numpy>=1.20.0",
+  "matplotlib>=3.5.0",
+  "seaborn>=0.10.0",
 ]
 
 [project.urls]

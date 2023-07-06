@@ -7,11 +7,10 @@ from sim_utils import *
 
 
 #define an initial condition
-q0 = np.array([[0, 1, 1, -1]]).T
+q0 = np.array([[0.1, 0.1, 0, 0]]).T
 
-#create a dynamics object for a single double integrator
-# dynamics = DoubleIntegratorDyn(q0, N = 2)
-dynamics = MSDRamp(q0, N = 2)
+#create a dynamics object for a double pendulum
+dynamics = DoublePendulum(q0, N = 1)
 
 #create a simulation environment
 T = 10 #10 second simulation

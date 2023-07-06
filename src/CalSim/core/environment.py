@@ -126,7 +126,7 @@ class Environment:
             return True
         return False
     
-    def run(self, N = 1, run_vis = True):
+    def run(self, N = 1, run_vis = True, verbose = False):
         """
         Function to run the simulation N times
         Inputs:
@@ -138,8 +138,10 @@ class Environment:
         #loop over an overall simulation N times
         for i in range(N):
             self.reset()
+            print("Running Simulation.")
             while not self._is_done():
-                print("Simulation Time Remaining: ", self.TOTAL_SIM_TIME - self.t)
+                if verbose:
+                    print("Simulation Time Remaining: ", self.TOTAL_SIM_TIME - self.t)
                 self.step() #step the environment while not done
             if run_vis:
                 self.visualize() #render the result

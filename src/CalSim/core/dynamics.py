@@ -245,6 +245,58 @@ class MSDRamp(Dynamics):
         #call the init function on the MSD ramp system
         super().__init__(x0, 2, 1, msd_ramp, N = N)
 
+class DoublePendulum(Dynamics):
+    """
+    Double pendulum dynamics
+    """
+    def __init__(self, x0, m = 0.5, I = 0.5, L = 1, g = 9.81, N = 1):
+        """
+        Inputs:
+            x0: initial condition [q1, q2, q1Dot, q2Dot]
+            m: mass of joints
+            I: inertia of joints
+            L: length of joints
+            g: gravitational acceleration
+        """
+        #store the system parameters
+        self.m = m
+        self.I = I
+        self.L = L
+        self.g = g
+
+        def double_pend(x, u, t):
+            """
+            Double pendulum dynamics
+            Includes a torque input at each joint.
+            """
+            #extract the states
+            q1, q2, q1Dot, q2Dot = x[0, 0], x[1, 0], x[2, 0], x[3, 0]
+
+            #compute the inertia matrix
+            M = np.array([[2*I + 1.5*m*L**2 + m*L**2*np.cos(q2), I+0.25*m*L**2+0.5*m*L**2*np.cos(q2)],
+                          [I+0.25*m*L**2+0.5*m*L**2*np.cos(q2), I+0.25*m*L**2]])
+            #compute C
+            C = np.array([[0, -m*L**2*q1Dot*np.sin(q2)-0.5*m*L**2*q2Dot*np.sin(q2)], [0.5*m*L**2*q1Dot*np.sin(q2), 0]])
+
+            #compute N
+            N = np.array([[0.5*m*g*L*(np.sin(q1+q2)+3*np.sin(q1)), 0.5*m*g*L*np.sin(q1+q2)]]).T
+
+            #compute qDDot
+            qDot = np.array([[q1Dot, q2Dot]]).T
+            qDDot = np.linalg.inv(M)@(u - C@qDot - N)
+
+            #return [qDot, qDDot]
+            return np.vstack((qDot, qDDot))
+        
+        #call the init function on the double pendulum system
+        super().__init__(x0, 4, 2, double_pend, N = N)
+
+
+class FlywheelPendulum(Dynamics):
+    """
+    Pendulum driven by a flywheel
+    """
+
 
 class TurtlebotSysDyn(Dynamics):
     """

@@ -297,6 +297,56 @@ class FlywheelPendulum(Dynamics):
     Pendulum driven by a flywheel
     """
 
+class MarsProbe(Dynamics):
+    """
+    Dynamics of a particle falling through the atmosphere of mars.
+    """
+    def __init__(self, x0, m = 572.743, Cd = 1.46, A = 5.5155, ftMax = 9806.65, N = 1):
+        """
+        Init function for mars probe.
+        
+        Mission Phases and Probe Parameters:
+        - https://ntrs.nasa.gov/api/citations/20080034645/downloads/20080034645.pdf
+        - Enter atmosphere at 5600 m/s
+        - Chute deployment occurs at Mach 1.65, 12.9 km above surface
+        - Touchdown occurs at 0.7 m/s
+        
+        Inputs:
+            x0 (2x1 NumPy Array): position vector of the system
+            m (float): mass of the probe
+            Cd (float): drag coefficient of probe 
+                NOTE: Cd for a parachute ~0.5 -> add this to Cd for just probe. Chute area ~200m^2.
+                      https://downloads.spj.sciencemag.org/space/2022/9805457.pdf
+            A (float): surface area for drag calculation
+            ftMax (float): maximum thrust force of probe
+            N (int): number of probes to simulate
+        """
+        #properties of probe
+        self.m = m
+        self.Cd = Cd
+        self.ftMax = ftMax
+
+        #properties of Mars
+        self.rho = 0.02 #density of atmosphere (kg/m^3)
+        self.M = 6.41693 * 10**23 #mass of Mars (kg)
+        self.R = 3390 * 10**3 #radius of Mars (m)
+        self.G = 6.6743 * 10**(-11) #universal gravitational constant
+
+        def probe_dyn(x, u, t):
+            """
+            Mars probe dynamics.
+            Inputs:
+                x (2x1 NumPy Array): [y, yDot] for y distance to the center of mars
+                u (1x1 NumPy Array): thrust force of the probe
+                t (float): time
+            """
+            y = x[0, 0]
+            yDot = x[1, 0]
+            yDDot = -self.G * self.M / (y**2) + 0.5*self.rho*self.Cd*yDot**2/self.m + u[0, 0]/m
+            return np.array([[yDot, yDDot]]).T
+        
+        #call the init function on the probe pendulum system
+        super().__init__(x0, 2, 1, probe_dyn, N = N)
 
 class TurtlebotSysDyn(Dynamics):
     """

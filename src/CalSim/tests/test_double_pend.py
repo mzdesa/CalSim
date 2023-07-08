@@ -30,5 +30,4 @@ tHist = tHist[0, :].tolist()
 #plot q1 against q2
 plt.plot(q1Hist, q2Hist)
 plt.plot(q1DotHist, q2DotHist)
-
 plt.show()

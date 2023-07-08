@@ -43,11 +43,12 @@ class Environment:
         self.CONTROL_FREQ = 50 #control frequency in Hz
         self.SIMS_PER_STEP = self.SIM_FREQ//self.CONTROL_FREQ
         self.TOTAL_SIM_TIME = T #total simulation time in s
+        self.TOTAL_ITER = self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1 #total number of iterations
         
         #Define history arrays
-        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
-        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
-        self.tHist = np.zeros((1, self.TOTAL_SIM_TIME*self.CONTROL_FREQ))
+        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_ITER))
+        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_ITER))
+        self.tHist = np.zeros((1, self.TOTAL_ITER))
         
     def reset(self):
         """
@@ -63,9 +64,9 @@ class Environment:
         self.xObsv = None #reset observer state
         
         #Define history arrays
-        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
-        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
-        self.tHist = np.zeros((1, self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1))
+        self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_ITER))
+        self.uHist = np.zeros((self.dynamics.sysInputDimn, self.TOTAL_ITER))
+        self.tHist = np.zeros((1, self.TOTAL_ITER))
 
     def step(self):
         """
@@ -76,14 +77,14 @@ class Environment:
         
         #solve for the control input using the observed state
         self.controller.eval_input(self.t)
+
+        #update the deterministic system data, iterations, and history array
+        self._update_data()
         
-        #Zero order hold over the controller frequency
+        #Zero order hold over the controller frequency and step dynamics
         for i in range(self.SIMS_PER_STEP):
             self.dynamics.integrate(self.controller.get_input(), self.t, 1/self.SIM_FREQ) #integrate dynamics
             self.t += 1/self.SIM_FREQ #increment the time
-            
-        #update the deterministic system data, iterations, and history array
-        self._update_data()        
     
     def _update_data(self):
         """
@@ -121,8 +122,8 @@ class Environment:
         Returns:
             boolean: whether or not the time has exceeded the total simulation time
         """
-        #check current time with respect to simulation time
-        if self.t >= self.TOTAL_SIM_TIME:
+        #check if we have exceeded the total number of iterations
+        if self.iter >= self.TOTAL_ITER:
             return True
         return False
     

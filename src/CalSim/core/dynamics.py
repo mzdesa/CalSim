@@ -177,15 +177,64 @@ class Dynamics:
         plt.legend(legendList)
         plt.show()
     
-    def show_animation(self, xData, uData, tData):
+    def show_animation(self, xData, uData, tData, axis_lims, labels, anim_point, anim_line = None, animate = True):
         """
         Function to play animations specific to this dynamic system.
         Args:
-            x ((sysStateDimn x N) numpy array): history of N states to plot
-            u ((sysInputDimn x N) numpy array): history of N inputs to plot
-            t ((1 x N) numpy array): history of N times associated with x and u
+            xData ((sysStateDimn x N) numpy array): history of N states to plot
+            uData ((sysInputDimn x N) numpy array): history of N inputs to plot
+            tData ((1 x N) numpy array): history of N times associated with x and u
+            axis_lims (Python List, length 4): list of axis limits, ex: [-0.25, 5.25, -0.25, 5.25]
+            labels (Python list, length 3): List of strings ["Xlabel", "Ylabel", "Title"] for plot
+            anim_point (Python function): function to be called at an index i, returns x, y to be animated
+            anim_line (Python function): function to be called at an index i, returns line to be animated
         """
-        pass
+        #Set constant animtion parameters
+        FREQ = 50 #control frequency, same as data update frequency
+        
+        if animate:
+            fig, ax = plt.subplots()
+            # set the axes limits
+            ax.axis(axis_lims)
+            # set equal aspect such that the circle is not shown as ellipse
+            ax.set_aspect("equal")
+
+            # create a set of points in the axes
+            point, = ax.plot([],[], marker="o", linestyle='None')
+
+            #check for anim_line
+            if anim_line is not None:
+                #define the line for the quadrotor
+                line, = ax.plot([], [], 'o-', lw=2)
+
+            def anim_func(i):
+                #Call animate_func to get the x and y to plot
+                x, y = anim_point(i)
+
+                #set the data to points and return points
+                point.set_data(x, y)
+
+                #check for anim_line
+                if anim_line is not None:
+                    #call the line animation function
+                    thisx, thisy = anim_line(i)
+                    #set the data for the line
+                    line.set_data(thisx, thisy)
+
+                    #if we use a line, return line and point
+                    return line, point
+                else:
+                    #if no line is present, just return the point
+                    return point,
+
+            num_frames = xData.shape[1]-1
+
+            anim = animation.FuncAnimation(fig, anim_func, frames=num_frames, interval=1/FREQ*1000, blit=True)
+
+            plt.xlabel(labels[0])
+            plt.ylabel(labels[1])
+            plt.title(labels[3])
+            plt.show()
     
     
 """
@@ -424,35 +473,26 @@ class TurtlebotSysDyn(Dynamics):
             t (1 x N numpy array): time history
             animate (bool, optional): Whether to generate animation or not. Defaults to True.
         """
-        #Set constant animtion parameters
-        FREQ = 50 #control frequency, same as data update frequency
-        
-        if animate:
-            fig, ax = plt.subplots()
-            # set the axes limits
-            ax.axis([-0.25, 5.25, -0.25, 5.25])
-            # set equal aspect such that the circle is not shown as ellipse
-            ax.set_aspect("equal")
-            # create a set of points in the axes
-            points, = ax.plot([],[], marker="o", linestyle='None')
-            num_frames = xData.shape[1]-1
-                
-            def animate(i):
-                x = []
-                y = []
-                #get the x, y data associated with each turtlebot
-                for j in range(self.N):
-                    x.append(xData[3*j, i])
-                    y.append(xData[3*j+1, i])
-                points.set_data(x, y)
-                return points,
-            
-            anim = animation.FuncAnimation(fig, animate, frames=num_frames, interval=1/FREQ*1000, blit=True)
+        #define animation function to return the x, y points to be animated
+        def anim_point(i):
+            x = []
+            y = []
+            #get the x, y data associated with each turtlebot
+            for j in range(self.N):
+                x.append(xData[3*j, i])
+                y.append(xData[3*j+1, i])
+            return x, y
+    
+        #define axis limits
+        axis_lims = [-0.25, 5.25, -0.25, 5.25]
 
-            plt.xlabel("X Position (m)")
-            plt.ylabel("Y Position (m)")
-            plt.title("Positions of Turtlebots in Space")
-            plt.show()
+        #define labels
+        axis_labels = ["X Position (m)", "Y Position (m)", "Positions of Turtlebots in Space"]
+
+        #call the super() animation function
+        super().show_animation(xData, uData, tData, axis_lims, axis_labels, anim_point, anim_line = None, animate = animate)
+
+
 
 class PlanarQrotor(Dynamics):
     def __init__(self, x0 = np.zeros((8, 1)), m = 0.92, Ixx = 0.0023, l = 0.15, N = 1):
@@ -487,7 +527,7 @@ class PlanarQrotor(Dynamics):
             """
             #unpack the input vector
             F, M = U[0, 0], U[1, 0]
-            F = max(0, F) #CUT OFF THE FORCE AT ZERO!
+            F = max(0, F) #Cut off force at zero to prevent negative thrust
             
             #unpack the state vector
             x_dot, y_dot, z_dot = X[4, 0], X[5, 0], X[6, 0] #velocities
@@ -504,7 +544,12 @@ class PlanarQrotor(Dynamics):
         
         #call the super init function
         super().__init__(x0, 8, 2, quadrotor_dyn, N = N)
-    
+
+    def show_plots(self, xData, uData, tData):
+        #Plot each state variable in time
+        stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'Theta (rad)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)', 'Angular Vel (rad/s)']
+        inputLabels = ['Force (N)', 'Moment (N*m)']
+        super().show_plots(xData, uData, tData, stateLabels, inputLabels)
         
     def show_animation(self, xData, uData, tData, animate = True):
         """
@@ -518,69 +563,33 @@ class PlanarQrotor(Dynamics):
         #Set constant animtion parameters
         FREQ = 50 #control frequency, same as data update frequency
         L = self._l #quadrotor arm length
-        
-        if animate:
-            fig, ax = plt.subplots()
-            # set the axes limits
-            ax.axis([-1, 2.5, 0, 2.5])
-            # set equal aspect such that the circle is not shown as ellipse
-            ax.set_aspect("equal")
-            # create a point in the axes
-            point, = ax.plot(0,1, marker="o")
-            num_frames = xData.shape[1]-1
 
-            #define the line for the quadrotor
-            line, = ax.plot([], [], 'o-', lw=2)
-                
-            def animate(i):
-                y = xData[1, i]
-                z = xData[2, i]
-                point.set_data(y, z)
-                
-                #draw the quadrotor line body
-                theta = xData[3, i]
-                x1 = y + L*np.cos(theta)
-                x2 = y - L*np.cos(theta)
-                y1 = z + L*np.sin(theta)
-                y2 = z - L*np.sin(theta)
-                thisx = [x1, x2]
-                thisy = [y1, y2]
-                line.set_data(thisx, thisy)
-                
-                return line, point
-            
-            anim = animation.FuncAnimation(fig, animate, frames=num_frames, interval=1/FREQ*1000, blit=True)
-            plt.xlabel("Y Position (m)")
-            plt.ylabel("Z Position (m)")
-            plt.title("Position of Drone in Space")
-            plt.show()
-            
-        #Plot each state variable in time
-        fig, axs = plt.subplots(6)
-        fig.suptitle('Evolution of States in Time')
-        xlabel = 'Time (s)'
-        ylabels = ['Y Pos (m)', 'Z Pos (m)', 'Theta (rad)', 'Y Vel (m/s)', 'Z Vel (m/s)', 'Angular Vel (rad/s)']
-        indices = [1, 2, 3, 5, 6, 7] #skip the x coordinates - indices in the state vector to plot
-        goalStates = [0, 1, 2, 0, 0, 0, 0, 0]
-        n = 0 #index in the subplot
-        #plot the states
-        for i in indices:
-            axs[n].plot(tData.reshape((tData.shape[1], )).tolist(), xData[i, :].tolist())
-            #plot the goal state for each
-            axs[n].plot(tData.reshape((tData.shape[1], )).tolist(), [goalStates[i]]*tData.shape[1], 'r:')
-            axs[n].set(ylabel=ylabels[n]) #pull labels from the list above
-            axs[n].grid()
-            n += 1
-        axs[5].set(xlabel = xlabel)
-        plt.show()
-        #plot the inputs in a new plot
-        fig, axs = plt.subplots(2)
-        fig.suptitle('Evolution of Inputs in Time')
-        xlabel = 'Time (s)'
-        ylabels = ['Force (N)', 'Moment (N*m)']
-        for i in range(2):
-            axs[i].plot(tData.reshape((tData.shape[1], )).tolist(), uData[i, :].tolist())
-            axs[i].set(ylabel=ylabels[i])
-            axs[i].grid()
-        axs[1].set(xlabel = xlabel)
-        plt.show()
+        #define point animation function
+        def anim_point(i):
+            y = xData[1, i]
+            z = xData[2, i]
+            return y, z
+        
+        #define line animation function
+        def anim_line(i):
+            y = xData[1, i]
+            z = xData[2, i]
+
+            #draw the quadrotor line body
+            theta = xData[3, i]
+            x1 = y + L*np.cos(theta)
+            x2 = y - L*np.cos(theta)
+            y1 = z + L*np.sin(theta)
+            y2 = z - L*np.sin(theta)
+            thisx = [x1, x2]
+            thisy = [y1, y2]
+            return thisx, thisy
+        
+        #define axis limits
+        axis_lims = [-1, 2.5, 0, 2.5]
+
+        #define plot labels
+        labels = ["Y Position (m)", "Z Position (m)", "Position of Drone in Space"]
+
+        #call the super animation function
+        super().show_animation(xData, uData, tData, axis_lims, labels, anim_point, anim_line, animate = animate)

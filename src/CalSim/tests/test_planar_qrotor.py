@@ -5,7 +5,6 @@ sys.path.append("..")
 #import core as we would CalSim
 import core as cs
 import numpy as np
-import matplotlib.pyplot as plt
 
 #system initial condition
 x0 = np.array([[0, 0, 1, 0, 0, 0, 0, 0]]).T #start the quadrotor at 1 M in the air

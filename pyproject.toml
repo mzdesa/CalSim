@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "CalSim"
-version = "0.0.7"
+version = "0.0.8"
 authors = [
   { name="Massimiliano de Sa", email="mz.desa@berkeley.edu" },
 ]

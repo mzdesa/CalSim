@@ -41,9 +41,37 @@ class Controller:
             self._u: most recent input stored in class paramter
         """
         return self._u
+    
+class FFController(Controller):
+    """
+    Class for a simple feedforward controller.
+    """
+    def __init__(self, observer, lyapunovBarrierList = None, trajectory = None, uBounds = None):
+        """
+        Init function for a ff controller
+        Args:
+            observer (Observer): state observer object
+            ff (NumPy Array): constant feedforward input to send to system
+            lyapunov (List of LyapunovBarrier): list of LyapunovBarrier objects
+            trajectory (Trajectory): trajectory for the controller to track (could just be a constant point!)
+            uBounds ((Dynamics.singleInputDimn x 2) numpy array): minimum and maximum input values to the system
+        """
+        self.ff = np.array([[9.81*0.92, 0]]).T
+        super().__init__(observer, lyapunovBarrierList, trajectory, uBounds)
+    
+    def eval_input(self, t):
+        """
+        Solve for and return control input
+        Inputs:
+            t (float): time in simulation
+        Returns:
+            u ((Dynamics.singleInputDimn x 1)): input vector, as determined by controller
+        """
+        self._u = self.ff
+        return self._u
 
 class ControllerManager(Controller):
-    def __init__(self, observerManager, barrierManager, trajectoryManager, lidarManager, ControlType):
+    def __init__(self, observerManager, ControlType, barrierManager = None, trajectoryManager = None, lidarManager = None):
         """
         Managerial class that points to N controller instances for the system. Interfaces
         directly with the overall system dynamics object.

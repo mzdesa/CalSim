@@ -1,7 +1,8 @@
 import numpy as np
+from .dynamics import *
 
 class StateObserver:
-    def __init__(self, dynamics, mean = None, sd = None):
+    def __init__(self, dynamics, mean = None, sd = None, index = None):
         """
         Init function for state observer
 
@@ -9,23 +10,44 @@ class StateObserver:
             dynamics (Dynamics): Dynamics object instance
             mean (float, optional): Mean for gaussian noise. Defaults to None.
             sd (float, optional): standard deviation for gaussian noise. Defaults to None.
+            index (int): index of the agent
         """
         self.dynamics = dynamics
-        self.sysStateDimn = dynamics.sysStateDimn
-        self.sysInputDimn = dynamics.sysInputDimn
         self.mean = mean
         self.sd = sd
+        self.index = index
+
+        #store the state dimension of an individual agent
+        self.singleStateDimn = dynamics.singleStateDimn
+        self.singleInputDimn = dynamics.singleInputDimn
+
+        #store the state dimension of an entire agent
+        self.sysStateDimn = dynamics.sysStateDimn
+        self.sysInputDimn = dynamics.sysInputDimn
         
-    def get_state(self):
+    def get_state(self, return_full = False):
         """
         Returns a potentially noisy observation of the system state
+        Inputs:
+            return_full (Boolean): return the entire state vector of the system instead of just index i
         """
+        #first, get an observation of the entire state vector
         if self.mean or self.sd:
-            #return an observation of the vector with noise
-            return self.dynamics.get_state() + np.random.normal(self.mean, self.sd, (self.sysStateDimn, 1))
-        return self.dynamics.get_state()
+            #get an observation of the vector with noise
+            observedState = self.dynamics.get_state() + np.random.normal(self.mean, self.sd, (self.sysStateDimn, 1))
+        else:
+            #get an observation of the vector with no noise
+            observedState = self.dynamics.get_state()
+
+        #now, return either the entire observed system state vector or the observed state vector of a single agent
+        if return_full:
+            #return the entire state vector
+            return observedState
+        else:
+            #return the state vector of the agent at index self.index
+            return observedState[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
     
-class EgoObserver(StateObserver):
+class TurtlebotObserver(StateObserver):
     def __init__(self, dynamics, mean, sd, index):
         """
         Init function for a state observer for a single agent within a system of N agents
@@ -36,7 +58,7 @@ class EgoObserver(StateObserver):
             index (int): index of the agent in the system
         """
         #initialize the super class
-        super().__init__(dynamics, mean, sd)
+        super().__init__(dynamics, mean, sd, index)
 
         #store the index of the agent
         self.index = index
@@ -51,7 +73,7 @@ class EgoObserver(StateObserver):
         Returns:
             (Dynamics.singleStateDimn x 1 NumPy array), observed state vector of the ith turtlebot in the system (zero indexed)
         """
-        return super().get_state()[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
+        return super().get_state(return_full=True)[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
     
     def get_vel(self):
         """
@@ -67,6 +89,53 @@ class EgoObserver(StateObserver):
         
         #calculate the derivative of the ith state vector using the noisy state measurement
         return self.dynamics._f(x, u, 0) #pass in zero for the time (placeholder for time invar system)
+
+class QuadObserver(StateObserver):
+    def __init__(self, dynamics, mean, sd, index):
+        """
+        Init function for state observer for a planar quadrotor
+
+        Args:
+            dynamics (Dynamics): Dynamics object instance
+            mean (float, optional): Mean for gaussian noise. Defaults to None.
+            sd (float, optional): standard deviation for gaussian noise. Defaults to None.
+            index (int): index of the quadrotor
+        """
+        super().__init__(dynamics, mean, sd, index)
+    
+    def get_pos(self):
+        """
+        Returns a potentially noisy measurement of JUST the position of the Qrotor mass center
+        Returns:
+            3x1 numpy array, observed position vector of system
+        """
+        return self.get_state()[0:3].reshape((3, 1))
+    
+    def get_vel(self):
+        """
+        Returns a potentially noisy measurement of JUST the spatial velocity of the Qrotor mass center
+        Returns:
+            3x1 numpy array, observed velocity vector of system
+        """
+        return self.get_state()[4:7].reshape((3, 1))
+
+    def get_orient(self):
+        """
+        Returns a potentially noisy measurement of the 
+        Assumes that the system is planar and just rotates about the X axis.
+        Returns:
+            theta (float): orientation angle of quadrotor with respect to world frame
+        """
+        return self.get_state()[3, 0]
+    
+    def get_omega(self):
+        """
+        Returns a potentially noisy measurement of the angular velocity theta dot
+        Assumes that the system is planar and just rotates about the X axis.
+        Returns:
+            theta (float): orientation angle of quadrotor with respect to world frame
+        """
+        return self.get_state()[7, 0]
     
     
 class ObserverManager:
@@ -86,10 +155,18 @@ class ObserverManager:
         #create an observer dictionary storing N observer instances
         self.observerDict = {}
 
-        #create N observer objects
+        #create N observer objects of the correct type
         for i in range(self.dynamics.N):
-            #create an observer with index i
-            self.observerDict[i] = EgoObserver(dynamics, mean, sd, i)
+            #create an observer with index i. Check the type of dynamics object and use a custom observer where necessary.
+            if isinstance(self.dynamics, TurtlebotSysDyn):
+                #create a turtlebot observer
+                self.observerDict[i] = TurtlebotObserver(dynamics, mean, sd, i)
+            elif isinstance(self.dynamics, PlanarQrotor):
+                #create a quadrotor observer
+                self.observerDict[i] = QuadObserver(dynamics, mean, sd, i)
+            else:
+                #create a standard state observer
+                self.observerDict[i] = StateObserver(dynamics, mean, sd, i)
 
     def get_observer_i(self, i):
         """

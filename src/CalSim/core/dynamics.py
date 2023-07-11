@@ -233,7 +233,7 @@ class Dynamics:
 
             plt.xlabel(labels[0])
             plt.ylabel(labels[1])
-            plt.title(labels[3])
+            plt.title(labels[2])
             plt.show()
     
     
@@ -515,7 +515,7 @@ class PlanarQrotor(Dynamics):
         self._l = l
 
         #define quadrotor dynamics
-        def quadrotor_dyn(self, X, U, t):
+        def quadrotor_dyn(X, U, t):
             """
             Returns the derivative of the state vector
             Args:

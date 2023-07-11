@@ -32,7 +32,7 @@ class PlanarDepthCam:
         #store an attribute for the pointcloud data
         self._ptcloudData = {}
 
-    def calc_pointcloud_world(self):
+    def calc_ptcloud_world(self):
         """
         Calculate the pointcloud of the environment using the obstalce manager
         This is calculated in the world frame. As this is a planar camera
@@ -59,9 +59,9 @@ class PlanarDepthCam:
                 thetaJ = j*2*np.pi/self.numPts
 
                 #calculate each coordinate
-                self.xList.append(0)
-                self.yList.append(qCenter[1, 0] + r*np.cos(thetaJ))
-                self.zList.append(qCenter[2, 0] + r*np.sin(thetaJ))
+                xList.append(0)
+                yList.append(qCenter[1, 0] + r*np.cos(thetaJ))
+                zList.append(qCenter[2, 0] + r*np.sin(thetaJ))
 
         #assemble and return the pointcloud in the world frame
         return np.array([xList, yList, zList])
@@ -79,7 +79,7 @@ class PlanarDepthCam:
                         [0, np.sin(theta), np.cos(theta)]])
         return Rsq
     
-    def calc_pointcloud(self):
+    def calc_ptcloud(self):
         """
         Calculates the pointcloud in the frame of quadrotor i, updates the 
         self._ptcloudData attribute.
@@ -94,7 +94,7 @@ class PlanarDepthCam:
         Rsq = self.compute_rotation(theta)
 
         #compute pointcloud in world frame
-        ptcloudWorld = self.calc_pointcloud_world()
+        ptcloudWorld = self.calc_ptcloud_world()
 
         #transform pointcloud
         ptcloudQrotor = Rsq.T @ (ptcloudWorld - q)

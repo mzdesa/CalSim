@@ -101,7 +101,7 @@ class PlanarDepthCam:
 
         #store in the pointcloud attribute
         self._ptcloudData["ptcloud"] = ptcloudQrotor
-        self._ptcloudData["stateVec"] = q
+        self._ptcloudData["stateVec"] = state
         return self._ptcloudData
     
     def get_pointcloud(self, update = True):

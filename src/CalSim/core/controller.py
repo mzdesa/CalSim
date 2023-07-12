@@ -18,6 +18,7 @@ class Controller:
         self.observer = observer
         self.lyapunovBarrierList = lyapunovBarrierList
         self.trajectory = trajectory
+        self.depthCam = depthCam
         
         #store input
         self._u = np.zeros((self.observer.singleInputDimn, 1))

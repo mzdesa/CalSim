@@ -49,6 +49,20 @@ class Dynamics:
         Retrieve the state vector
         """
         return self._x
+    
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Skeleton dynamics class")
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        return None
         
     def deriv(self, x, u, t):
         """
@@ -177,7 +191,7 @@ class Dynamics:
         plt.legend(legendList)
         plt.show()
     
-    def show_animation(self, xData, uData, tData, axis_lims, labels, anim_point, anim_line = None, animate = True):
+    def show_animation(self, xData, uData, tData, axis_lims, labels, anim_point, anim_line = None, animate = True, obsManager = None):
         """
         Function to play animations specific to this dynamic system.
         Args:
@@ -188,6 +202,7 @@ class Dynamics:
             labels (Python list, length 3): List of strings ["Xlabel", "Ylabel", "Title"] for plot
             anim_point (Python function): function to be called at an index i, returns x, y to be animated
             anim_line (Python function): function to be called at an index i, returns line to be animated
+            obsManager (ObstacleManager object): If included, will animate the obstacles in the scene.
         """
         #Set constant animtion parameters
         FREQ = 50 #control frequency, same as data update frequency
@@ -201,6 +216,17 @@ class Dynamics:
 
             # create a set of points in the axes
             point, = ax.plot([],[], marker="o", linestyle='None')
+
+            #plot the obstacles if present
+            if obsManager is not None:
+                #plot the circular obstacles
+                for i in range(obsManager.NumObs):
+                    #get the obstacle 
+                    obsI = obsManager.get_obstacle_i(i)
+                    center = obsI.get_center()
+
+                    #plot obstacle on YZ
+                    plt.gca().add_patch(plt.Circle((center[1, 0], center[2, 0]), radius = obsI.get_radius(), fc = 'c'))
 
             #check for anim_line
             if anim_line is not None:
@@ -259,6 +285,13 @@ class DoubleIntegratorDyn(Dynamics):
             """
             return np.array([[0, 1], [0, 0]]) @ x + np.array([[0, 1]]).T @ u
         super().__init__(x0, 2, 1, double_integrator, N = N)
+    
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Double Integrator Dynamics")
 
 class MSDRamp(Dynamics):
     """
@@ -293,6 +326,27 @@ class MSDRamp(Dynamics):
         
         #call the init function on the MSD ramp system
         super().__init__(x0, 2, 1, msd_ramp, N = N)
+
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Mass-Spring-Damper System")
+        print("Mass: ", self.m)
+        print("Gravitational accel: ", self.g)
+        print("Spring constant: ", self.k)
+        print("Damping constant: ", self.b)
+        print("Ramp angle: ", self.theta)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self.m, self.g, self.k, self.b, self.theta
+        """
+        return self.m, self.g, self.k, self.b, self.theta
 
 class DoublePendulum(Dynamics):
     """
@@ -339,6 +393,26 @@ class DoublePendulum(Dynamics):
         
         #call the init function on the double pendulum system
         super().__init__(x0, 4, 2, double_pend, N = N)
+    
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Double Pendulum System")
+        print("Mass: ", self.m)
+        print("Inertia: ", self.I)
+        print("Length: ", self.L)
+        print("Gravitational accel: ", self.g)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self.m, self.I, self.L, self.g
+        """
+        return self.m, self.I, self.L, self.g
 
 
 class FlywheelPendulum(Dynamics):
@@ -425,6 +499,23 @@ class TurtlebotSysDyn(Dynamics):
         #store the turtlebot radius
         self.rTurtlebot = rTurtlebot 
 
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Turtlebot System")
+        print("Turtlebot radius: ", self.rTurtlebot)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self.rTurtlebot
+        """
+        return self.rTurtlebot
+
     def set_z(self, z, i):
         """
         Function to set the value of z, the augmented input vctor.
@@ -464,7 +555,7 @@ class TurtlebotSysDyn(Dynamics):
         inputLabels = ["V (m/s)", "Omega (rad/s)"]
         super().show_plots(xData, uData, tData, stateLabels, inputLabels)
     
-    def show_animation(self, xData, uData, tData, animate = True):
+    def show_animation(self, xData, uData, tData, animate = True, obsManager = None):
         """
         Shows the animation and visualization of data for this system.
         Args:
@@ -472,6 +563,7 @@ class TurtlebotSysDyn(Dynamics):
             u (inputDimn x N numpy array): input vector history array
             t (1 x N numpy array): time history
             animate (bool, optional): Whether to generate animation or not. Defaults to True.
+            obsManager (ObstacleManager): if included, will animate any obstacles present
         """
         #define animation function to return the x, y points to be animated
         def anim_point(i):
@@ -490,7 +582,7 @@ class TurtlebotSysDyn(Dynamics):
         axis_labels = ["X Position (m)", "Y Position (m)", "Positions of Turtlebots in Space"]
 
         #call the super() animation function
-        super().show_animation(xData, uData, tData, axis_lims, axis_labels, anim_point, anim_line = None, animate = animate)
+        super().show_animation(xData, uData, tData, axis_lims, axis_labels, anim_point, anim_line = None, animate = animate, obsManager = obsManager)
 
 
 
@@ -545,13 +637,33 @@ class PlanarQrotor(Dynamics):
         #call the super init function
         super().__init__(x0, 8, 2, quadrotor_dyn, N = N)
 
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Planar Quadrotor System")
+        print("Mass: ", self._m)
+        print("Inertia: ", self._Ixx)
+        print("Gravitational accel: ", self._g)
+        print("Arm length: ", self._l)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self._m, self._Ixx, self._g, self._l
+        """
+        return self._m, self._Ixx, self._g, self._l
+
     def show_plots(self, xData, uData, tData):
         #Plot each state variable in time
         stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'Theta (rad)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)', 'Angular Vel (rad/s)']
         inputLabels = ['Force (N)', 'Moment (N*m)']
         super().show_plots(xData, uData, tData, stateLabels, inputLabels)
         
-    def show_animation(self, xData, uData, tData, animate = True):
+    def show_animation(self, xData, uData, tData, animate = True, obsManager = None):
         """
         Shows the animation and visualization of data for this system.
         Args:
@@ -559,6 +671,7 @@ class PlanarQrotor(Dynamics):
             u (inputDimn x N numpy array): input vector history array
             t (1 x N numpy array): time history
             animate (bool, optional): Whether to generate animation or not. Defaults to True.
+            obsManager (ObstacleManager): Manager object for obstacles. If included, will animate the obstacles.
         """
         #Set constant animtion parameters
         FREQ = 50 #control frequency, same as data update frequency
@@ -592,4 +705,4 @@ class PlanarQrotor(Dynamics):
         labels = ["Y Position (m)", "Z Position (m)", "Position of Drone in Space"]
 
         #call the super animation function
-        super().show_animation(xData, uData, tData, axis_lims, labels, anim_point, anim_line, animate = animate)
+        super().show_animation(xData, uData, tData, axis_lims, labels, anim_point, anim_line, animate = animate, obsManager=obsManager)

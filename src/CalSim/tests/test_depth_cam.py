@@ -27,8 +27,10 @@ depthManager = cs.DepthCamManager(observerManager, obstacleManager, mean = None,
 #create a controller manager with a basic FF controller
 controllerManager = cs.ControllerManager(observerManager, cs.FFController, depthManager = depthManager)
 
-env = cs.Environment(dynamics, controllerManager, observerManager)
+env = cs.Environment(dynamics, controllerManager, observerManager, obstacleManager)
 env.reset()
+
+env.run()
 
 #get the pointcloud
 ptcloudDict = depthManager.get_depth_cam_i(0).get_pointcloud()

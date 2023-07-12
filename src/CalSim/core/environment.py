@@ -3,17 +3,19 @@ from .controller import ControllerManager, Controller
 from .state_estimation import ObserverManager
 
 class Environment:
-    def __init__(self, dynamics, controller = None, observer = None, T = 10):
+    def __init__(self, dynamics, controller = None, observer = None, obstacleManager = None, T = 10):
         """
         Initializes a simulation environment
         Args:
             dynamics (Dynamics): system dynamics object
             controller (Controller): system controller object
             observer (Observer): system state estimation object
+            obstacleManager (ObstacleManager): obstacle objects
             T (Float): simulation time
         """
         #store system parameters
-        self.dynamics = dynamics
+        self.dynamics = dynamics #store system dynamics
+        self.obstacleManager = obstacleManager #store manager for any obstacles present
 
         #if observer and controller are none, create default objects
         if observer is not None:
@@ -127,7 +129,7 @@ class Environment:
             return True
         return False
     
-    def run(self, N = 1, run_vis = True, verbose = False):
+    def run(self, N = 1, run_vis = True, verbose = False, obsManager = None):
         """
         Function to run the simulation N times
         Inputs:
@@ -152,6 +154,8 @@ class Environment:
     def visualize(self):
         """
         Provide visualization of the environment
+        Inputs:
+            obsManager (Obstacle Manager, optional): manager to plot obstacles in the animation
         """
-        self.dynamics.show_animation(self.xHist, self.uHist, self.tHist)
+        self.dynamics.show_animation(self.xHist, self.uHist, self.tHist, obsManager = self.obstacleManager)
         self.dynamics.show_plots(self.xHist, self.uHist, self.tHist)

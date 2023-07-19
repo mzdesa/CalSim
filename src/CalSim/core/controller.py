@@ -55,7 +55,7 @@ class FFController(Controller):
             lyapunov (List of LyapunovBarrier): list of LyapunovBarrier objects
             trajectory (Trajectory): trajectory for the controller to track (could just be a constant point!)
         """
-        self.ff = np.array([[9.81*1, 0, 0, 0]]).T
+        self.ff = np.array([[9.81*1, 0]]).T
         self.depthCam = depthCam
         super().__init__(observer, lyapunovBarrierList, trajectory)
     

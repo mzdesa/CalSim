@@ -27,7 +27,7 @@ class Environment:
             self.controller = controller
         else:
             #create a default zero input controller manager (using the skeleton Controller class)
-            self.controller = ControllerManager(self.observer, None, None, None, Controller)
+            self.controller = ControllerManager(self.observer, Controller, None, None, None)
         
         #define environment parameters
         self.iter = 0 #number of iterations

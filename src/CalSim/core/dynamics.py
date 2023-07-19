@@ -199,7 +199,7 @@ class Dynamics:
         plt.legend(legendList)
         plt.show()
     
-    def show_animation(self, xData, uData, tData, axis_lims, labels, anim_point, anim_line = None, animate = True, obsManager = None):
+    def show_animation(self, xData, uData, tData, axis_lims = None, labels = None, anim_point = None, anim_line = None, animate = False, obsManager = None):
         """
         Function to play animations specific to this dynamic system.
         Args:
@@ -421,7 +421,6 @@ class DoublePendulum(Dynamics):
             self.m, self.I, self.L, self.g
         """
         return self.m, self.I, self.L, self.g
-
 
 class FlywheelPendulum(Dynamics):
     """
@@ -846,7 +845,7 @@ class Qrotor3D(Dynamics):
         ax.set_ylabel('Y')
         ax.set_zlim3d([0, 2.5])
         ax.set_zlabel('Z')
-        
+
         #plot the 3d trajectory
         plt.title("Quadrotor Trajectory")
         plt.show()

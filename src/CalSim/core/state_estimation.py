@@ -156,6 +156,53 @@ class QuadObserver(StateObserver):
         """
         return self.get_state()[7, 0]
     
+class Quad3DObserver(StateObserver):
+    def __init__(self, dynamics, mean, sd, index):
+        """
+        Init function for state observer for a 3D quadrotor
+
+        Args:
+            dynamics (Dynamics): Dynamics object instance
+            mean (float, optional): Mean for gaussian noise. Defaults to None.
+            sd (float, optional): standard deviation for gaussian noise. Defaults to None.
+            index (int): index of the quadrotor
+        """
+        super().__init__(dynamics, mean, sd, index)
+    
+    def get_pos(self):
+        """
+        Returns a potentially noisy measurement of JUST the position of the Qrotor mass center
+        Returns:
+            3x1 numpy array, observed position vector of system
+        """
+        return self.get_state()[0:3].reshape((3, 1))
+    
+    def get_vel(self):
+        """
+        Returns a potentially noisy measurement of JUST the spatial velocity of the Qrotor mass center
+        Returns:
+            3x1 numpy array, observed spatial velocity vector of system
+        """
+        return self.get_state()[15:].reshape((3, 1))
+
+    def get_orient(self):
+        """
+        Returns a potentially noisy measurement of the 
+        Assumes that the system is planar and just rotates about the X axis.
+        Returns:
+            theta (float): orientation angle of quadrotor with respect to world frame
+        """
+        return self.get_state()[3:12].reshape((3, 3))
+    
+    def get_omega(self):
+        """
+        Returns a potentially noisy measurement of the angular velocity theta dot
+        Assumes that the system is planar and just rotates about the X axis.
+        Returns:
+            theta (float): orientation angle of quadrotor with respect to world frame
+        """
+        return self.get_state()[12:15].reshape((3, 1))
+    
     
 class ObserverManager:
     def __init__(self, dynamics, mean = None, sd = None):
@@ -181,8 +228,11 @@ class ObserverManager:
                 #create a turtlebot observer
                 self.observerDict[i] = TurtlebotObserver(dynamics, mean, sd, i)
             elif isinstance(self.dynamics, PlanarQrotor):
-                #create a quadrotor observer
+                #create a planar quadrotor observer
                 self.observerDict[i] = QuadObserver(dynamics, mean, sd, i)
+            elif isinstance(self.dynamics, Qrotor3D):
+                #create a 3D quadrotor observer
+                self.observerDict[i] = Quad3DObserver(dynamics, mean, sd, i)
             else:
                 #create a standard state observer
                 self.observerDict[i] = StateObserver(dynamics, mean, sd, i)

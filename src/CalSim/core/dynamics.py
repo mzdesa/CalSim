@@ -1,7 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 import seaborn as sns
+
+#import utils from transforms.py
+from .transforms import *
 
 class Dynamics:
     """
@@ -160,33 +164,37 @@ class Dynamics:
             stateLabels ((singleStateDimn) length list of strings): Optional custom labels for the state plots
             inputLabels ((singleInputDimn) length list of strings): Optional custom labels for the input plots
         """
+        #get the shapes of the data to plot
+        xDataShape = xData.shape[0]//self.N
+        inputDataShape = uData.shape[0]//self.N
+
         #Plot each state variable in time
-        fig, axs = plt.subplots(self.singleStateDimn + self.singleInputDimn)
+        fig, axs = plt.subplots(xDataShape + inputDataShape)
         fig.suptitle('Evolution of States and Inputs in Time')
         xlabel = 'Time (s)'
 
         #set state and input labels
         if stateLabels is None:
-            stateLabels = ["X" + str(i + 1) for i in range(self.singleStateDimn)]
+            stateLabels = ["X" + str(i + 1) for i in range(xDataShape)]
         if inputLabels is None:
-            inputLabels = ["U" + str(i + 1) for i in range(self.singleInputDimn)]
+            inputLabels = ["U" + str(i + 1) for i in range(inputDataShape)]
 
         #plot the states for each agent
         for j in range(self.N):
             n = 0 #index in the subplot
-            for i in range(self.singleStateDimn):
-                axs[n].plot(tData.reshape((tData.shape[1], )).tolist()[0:-1], xData[self.singleStateDimn*j + i, :].tolist()[0:-1])
+            for i in range(xDataShape):
+                axs[n].plot(tData.reshape((tData.shape[1], )).tolist()[0:-1], xData[xDataShape*j + i, :].tolist()[0:-1])
                 axs[n].set(ylabel=stateLabels[n]) #pull labels from the list above
                 axs[n].grid()
                 n += 1
 
             #plot the inputs
-            for i in range(self.singleInputDimn):
-                axs[i+self.singleStateDimn].plot(tData.reshape((tData.shape[1], )).tolist()[0:-1], uData[self.singleInputDimn*j + i, :].tolist()[0:-1])
-                axs[i+self.singleStateDimn].set(ylabel=inputLabels[i])
-                axs[i+self.singleStateDimn].grid()
+            for i in range(inputDataShape):
+                axs[i+xDataShape].plot(tData.reshape((tData.shape[1], )).tolist()[0:-1], uData[inputDataShape*j + i, :].tolist()[0:-1])
+                axs[i+xDataShape].set(ylabel=inputLabels[i])
+                axs[i+xDataShape].grid()
         
-        axs[self.singleStateDimn + self.singleInputDimn - 1].set(xlabel = xlabel)
+        axs[xDataShape + inputDataShape - 1].set(xlabel = xlabel)
         legendList = ["Agent " + str(i) for i in range(self.N)]
         plt.legend(legendList)
         plt.show()
@@ -706,3 +714,182 @@ class PlanarQrotor(Dynamics):
 
         #call the super animation function
         super().show_animation(xData, uData, tData, axis_lims, labels, anim_point, anim_line, animate = animate, obsManager=obsManager)
+
+class Qrotor3D(Dynamics):
+    def __init__(self, x0 = np.vstack((np.zeros((3, 1)), np.eye(3).reshape((9, 1)), np.zeros((6, 1)))), m = 0.92, I = 0.0023*np.eye(3), l = 0.15, N = 1):
+        """
+        Init function for a 3D quadrotor system. State vector is in R18.
+        Default state vector has zeros and identity for R.
+        State Vector: X = [x, y, z, r11, r12, r13, r21, r22, r23, r31, r32, r33, omegax, omegay, omegaz, xDot, yDot, xDot]
+        Input Vector: U = [F, Mx, My, Mz]
+        
+        Args:
+            x0 ((18 x 1) NumPy Array): initial state [x, y, z, r11, r12, r13, r21, r22, r23, r31, r32, r33, omegax, omegay, omegaz, xDot, yDot, xDot]
+            m (float): mass of quadrotor in kg
+            I ((3x3) NumPy Array): inertia tensor of quadrotor
+            l (float): length of one arm of quadrotor
+            N (int): number of quadrotors
+        """
+        #store physical parameters
+        self._m = m
+        self._I = I
+        self._g = 9.81
+        self._l = l
+
+        #store a reference to the inverse of the inertia
+        self.Iinv = np.linalg.inv(self._I)
+
+        #store geometric parameters
+        self.e3 = np.array([[0, 0, 1]]).T
+
+        #define quadrotor dynamics
+        def quadrotor_dyn(X, U, t):
+            """
+            Returns the derivative of the state vector
+            Args:
+                X (18 x 1 numpy array): current state vector at time t
+                U (4 x 1 numpy array): current input vector at time t
+                t (float): current time with respect to simulation start
+            Returns:
+                xDot: state_dimn x 1 derivative of the state vector
+            """
+            #unpack the input vector
+            F, M = U[0, 0], U[1 :, 0].reshape((3, 1))
+            F = max(0, F) #Cut off force at zero to prevent negative thrust
+
+            #unpack the state vector
+            xDot = X[15:, 0].reshape((3, 1)) #get spatial velocity
+            omega = X[12:15, 0].reshape((3, 1)) #angular velocity vector
+            omegaHat = hat(omega) #hat map of omega
+            R = X[3:12].reshape((3, 3)) #rotation matrix
+
+            #compute the derivatives
+            RDot = R @ omegaHat
+            omegaDot = self.Iinv @ (M - omegaHat @ self._I @ omega)
+            xDDot = F * R @ self.e3 - self._m * self._g * self.e3
+
+            #unpack RDot into a vector
+            RDotVec = RDot.reshape((9, 1))
+            
+            #construct and return state vector        
+            return np.vstack((xDot, RDotVec, omegaDot, xDDot))
+        
+        #call the super init function
+        super().__init__(x0, 18, 4, quadrotor_dyn, N = N)
+
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Planar Quadrotor System")
+        print("Mass: ", self._m)
+        print("Inertia Tensor: ", self._I)
+        print("Gravitational accel: ", self._g)
+        print("Arm length: ", self._l)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self._m, self._Ixx, self._g, self._l
+        """
+        return self._m, self._I, self._g, self._l
+
+    def show_plots(self, xData, uData, tData):
+        #Plot each state variable in time
+        stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)']
+        inputLabels = ['Force (N)', '||Moment|| (N*m)']
+
+        #Only plot XYZ position and velocity from the states
+        pos = xData[0:3, :]
+        vel = xData[15:, :]
+        xDataPlot = np.vstack((pos, vel))
+
+        #Plot the scalar force and magnitude of moment
+        fData = uData[0, :].reshape((1, uData.shape[1]))
+        mData = np.linalg.norm(uData[1:, :], axis = 0).reshape((1, uData.shape[1]))
+        uDataPlot = np.vstack((fData, mData))
+
+        super().show_plots(xDataPlot, uDataPlot, tData, stateLabels, inputLabels)
+
+        #Now, plot the 3D trajectory
+        x = pos[0, :].tolist()
+        y = pos[1, :].tolist()
+        z = pos[2, :].tolist()
+
+        ax = plt.figure().add_subplot(projection='3d')
+        ax.plot(x, y, z)
+        plt.title("Quadrotor Trajectory")
+        plt.show()
+
+    def show_animation(self, xData, uData, tData, animate = True, obsManager = None):
+        """
+        Shows the animation and visualization of data for this system.
+        Args:
+            xData (stateDimn x N Numpy array): state vector history array
+            u (inputDimn x N numpy array): input vector history array
+            t (1 x N numpy array): time history
+            animate (bool, optional): Whether to generate animation or not. Defaults to True.
+            obsManager (ObstacleManager): Manager object for obstacles. If included, will animate the obstacles.
+        """
+        #Set constant animtion parameters
+        FREQ = 50 #control frequency, same as data update frequency
+        L = self._l #quadrotor arm length
+
+        #initialize figure and a point
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+
+        #define points reprenting the center and propellers of the quadrotor
+        x, y, z = [0, 0, 0, 0, 0],  [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]
+        points, = ax.plot(x, y, z, 'o')
+
+        #define lines representing the arms of the quadrotor
+        lines = [ax.plot([], [], [])[0] for _ in range(2)]
+
+        def update(num, data, lines):
+            #get the rotation matrix and position at num
+            R = data[3:12, num].reshape((3, 3))
+            p = data[0:3, num].reshape((3, 1))
+
+            #define points on arm1 and arm2 in the quadrotor frame
+            pArm11 = np.array([[0, -L, 0]]).T #first point on arm 1
+            pArm12 = np.array([[0, L, 0]]).T #second point on arm 1
+            pArm21 = np.array([[L, 0, 0]]).T #first point on arm 1
+            pArm22 = np.array([[-L, 0, 0]]).T #second point on arm 1
+
+            #transform the points into the spatial frame
+            pArm11S = R @ pArm11 + p
+            pArm12S = R @ pArm12 + p
+            pArm21S = R @ pArm21 + p
+            pArm22S = R @ pArm22 + p
+
+            #define a line between the points
+            lines[0].set_data(np.hstack((pArm11S, pArm12S))[0:2, :])
+            lines[0].set_3d_properties(np.hstack((pArm11S, pArm12S))[2, :])
+            lines[1].set_data(np.hstack((pArm21S, pArm22S))[0:2, :])
+            lines[1].set_3d_properties(np.hstack((pArm21S, pArm22S))[2, :])
+
+            #define the x points to plot
+            xPoints = [data[0, num], pArm11S[0, 0],  pArm12S[0, 0],  pArm22S[0, 0],  pArm21S[0, 0]]
+            yPoints = [data[1, num], pArm11S[1, 0],  pArm12S[1, 0],  pArm22S[1, 0],  pArm21S[1, 0]]
+            zPoints = [data[2, num], pArm11S[2, 0],  pArm12S[2, 0],  pArm22S[2, 0],  pArm21S[2, 0]]
+
+            #define a point
+            points.set_data(xPoints, yPoints)
+            points.set_3d_properties(zPoints, 'z')
+
+        # Setting the axes properties
+        ax.set_xlim3d([-1.0, 1.0])
+        ax.set_xlabel('X')
+        ax.set_ylim3d([-1.0, 1.0])
+        ax.set_ylabel('Y')
+        ax.set_zlim3d([0.0, 10.0])
+        ax.set_zlabel('Z')
+
+        #run animation
+        num_frames = xData.shape[1]-1
+        anim = animation.FuncAnimation(fig, update,  num_frames, fargs=(xData, lines), interval=1/FREQ*1000, blit=False)
+        plt.show()

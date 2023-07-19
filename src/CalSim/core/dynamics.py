@@ -154,7 +154,7 @@ class Dynamics:
         else:
             return self.euler_integrate(u, t, dt)
     
-    def show_plots(self, xData, uData, tData, stateLabels = None, inputLabels = None):
+    def show_plots(self, xData, uData, tData, stateLabels = None, inputLabels = None, obsManager = None):
         """
         Function to show plots specific to this dynamic system.
         Args:
@@ -541,7 +541,7 @@ class TurtlebotSysDyn(Dynamics):
         #retrieve and return augmented input vector
         return self._z
     
-    def show_plots(self, xData, uData, tData):
+    def show_plots(self, xData, uData, tData, obsManager = None):
         #Plot the spatial trajectory of the turtlebots
         fig, ax = plt.subplots()
         ax.set_aspect("equal")
@@ -665,7 +665,7 @@ class PlanarQrotor(Dynamics):
         """
         return self._m, self._Ixx, self._g, self._l
 
-    def show_plots(self, xData, uData, tData):
+    def show_plots(self, xData, uData, tData, obsManager = None):
         #Plot each state variable in time
         stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'Theta (rad)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)', 'Angular Vel (rad/s)']
         inputLabels = ['Force (N)', 'Moment (N*m)']
@@ -797,7 +797,7 @@ class Qrotor3D(Dynamics):
         """
         return self._m, self._I, self._g, self._l
 
-    def show_plots(self, xData, uData, tData):
+    def show_plots(self, xData, uData, tData, obsManager = None):
         #Plot each state variable in time
         stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)']
         inputLabels = ['Force (N)', '||Moment|| (N*m)']
@@ -814,13 +814,40 @@ class Qrotor3D(Dynamics):
 
         super().show_plots(xDataPlot, uDataPlot, tData, stateLabels, inputLabels)
 
-        #Now, plot the 3D trajectory
+        #Now, plot the 3D trajectory and obstacles
         x = pos[0, :].tolist()
         y = pos[1, :].tolist()
         z = pos[2, :].tolist()
-
         ax = plt.figure().add_subplot(projection='3d')
+
         ax.plot(x, y, z)
+        #plot the obstacles if present
+        if obsManager is not None:
+            #plot the circular obstacles
+            for i in range(obsManager.NumObs):
+                #get the obstacle 
+                obsI = obsManager.get_obstacle_i(i)
+                center = obsI.get_center()
+                radius = obsI.get_radius()
+                
+                #get a grid of points
+                u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:20j]
+                x = center[0, 0] + radius * np.cos(u) * np.sin(v)
+                y = center[1, 0] + radius * np.sin(u) * np.sin(v)
+                z = center[2, 0] + radius * np.cos(v)
+
+                #plot the 3D surface on the axes
+                ax.plot_surface(x, y, z, cmap=plt.cm.viridis, linewidth=0)
+        
+        #set axis limits
+        ax.set_xlim3d([-0.5, 2])
+        ax.set_xlabel('X')
+        ax.set_ylim3d([-0.5, 2])
+        ax.set_ylabel('Y')
+        ax.set_zlim3d([0, 2.5])
+        ax.set_zlabel('Z')
+        
+        #plot the 3d trajectory
         plt.title("Quadrotor Trajectory")
         plt.show()
 

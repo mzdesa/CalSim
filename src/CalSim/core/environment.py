@@ -158,4 +158,4 @@ class Environment:
             obsManager (Obstacle Manager, optional): manager to plot obstacles in the animation
         """
         self.dynamics.show_animation(self.xHist, self.uHist, self.tHist, obsManager = self.obstacleManager)
-        self.dynamics.show_plots(self.xHist, self.uHist, self.tHist)
+        self.dynamics.show_plots(self.xHist, self.uHist, self.tHist, obsManager = self.obstacleManager)

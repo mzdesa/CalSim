@@ -20,6 +20,16 @@ def hat_3d(w):
                       [-w[1, 0], w[0, 0], 0]])
     return w_hat
 
+def vee_3d(wHat):
+    """
+    Function to compute the vee map of a 3x3 matrix in so(3).
+    Inputs:
+        wHat (3x3 NumPy Array): matrix in so(3) to compute vee map of
+    Returns:
+        w (3x1 NumPy Array): 3x1 vector corresponding to wHat
+    """
+    return np.array([[wHat[2, 1], wHat[0, 2], wHat[1, 0]]]).T
+
 def hat_6d(xi):
     """
     Function to compute the hat map of a 6x1 twist xi

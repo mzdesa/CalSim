@@ -841,6 +841,25 @@ class Qrotor3D(Dynamics):
         #initialize figure and a point
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
+        plt.axis('square')
+
+        #plot the obstacles if present
+        if obsManager is not None:
+            #plot the circular obstacles
+            for i in range(obsManager.NumObs):
+                #get the obstacle 
+                obsI = obsManager.get_obstacle_i(i)
+                center = obsI.get_center()
+                radius = obsI.get_radius()
+                
+                #get a grid of points
+                u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:20j]
+                x = center[0, 0] + radius * np.cos(u) * np.sin(v)
+                y = center[1, 0] + radius * np.sin(u) * np.sin(v)
+                z = center[2, 0] + radius * np.cos(v)
+
+                #plot the 3D surface on the axes
+                ax.plot_surface(x, y, z, cmap=plt.cm.YlGnBu_r)
 
         #define points reprenting the center and propellers of the quadrotor
         x, y, z = [0, 0, 0, 0, 0],  [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]
@@ -882,11 +901,11 @@ class Qrotor3D(Dynamics):
             points.set_3d_properties(zPoints, 'z')
 
         # Setting the axes properties
-        ax.set_xlim3d([-1.0, 1.0])
+        ax.set_xlim3d([-0.5, 2])
         ax.set_xlabel('X')
-        ax.set_ylim3d([-1.0, 1.0])
+        ax.set_ylim3d([-0.5, 2])
         ax.set_ylabel('Y')
-        ax.set_zlim3d([0.0, 10.0])
+        ax.set_zlim3d([0, 2.5])
         ax.set_zlabel('Z')
 
         #run animation

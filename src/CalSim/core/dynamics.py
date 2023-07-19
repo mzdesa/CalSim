@@ -859,7 +859,7 @@ class Qrotor3D(Dynamics):
                 z = center[2, 0] + radius * np.cos(v)
 
                 #plot the 3D surface on the axes
-                ax.plot_surface(x, y, z, cmap=plt.cm.YlGnBu_r)
+                ax.plot_surface(x, y, z, cmap=plt.cm.viridis, linewidth=0)
 
         #define points reprenting the center and propellers of the quadrotor
         x, y, z = [0, 0, 0, 0, 0],  [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]

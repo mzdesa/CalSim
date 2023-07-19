@@ -75,6 +75,22 @@ class TurtlebotObserver(StateObserver):
         """
         return super().get_state(return_full=True)[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
     
+    def get_pos(self):
+        """
+        Returns the XYZ position of the turtlebot. Note that z is always zero.
+        """
+        #get the x, y, theta state vector
+        qFull = self.get_state()
+
+        #return x, y, z
+        return np.vstack(([qFull[0:2].reshape((2, 1)), 0]))
+    
+    def get_orient(self):
+        """
+        Returns the orientation angle phi of the turtlebot
+        """
+        return self.get_state()[2, 0]
+
     def get_vel(self):
         """
         Returns a potentially noisy measurement of the derivative of the state vector of the ith agent
@@ -85,10 +101,13 @@ class TurtlebotObserver(StateObserver):
         u = self.dynamics.get_input()
 
         #now, get the noisy measurement of the entire state vector
-        x = self.get_state()
+        x = super().get_state(return_full = True)
+
+        #get the full velocity vector of the system
+        vel = self.dynamics.deriv(x, u, 0) 
         
-        #calculate the derivative of the ith state vector using the noisy state measurement
-        return self.dynamics._f(x, u, 0) #pass in zero for the time (placeholder for time invar system)
+        #return the correct slice of thefull velocity vector
+        return vel[self.singleStateDimn*self.index : self.singleStateDimn*(self.index + 1)].reshape((self.singleStateDimn, 1))
 
 class QuadObserver(StateObserver):
     def __init__(self, dynamics, mean, sd, index):

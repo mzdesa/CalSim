@@ -55,7 +55,8 @@ class FFController(Controller):
             lyapunov (List of LyapunovBarrier): list of LyapunovBarrier objects
             trajectory (Trajectory): trajectory for the controller to track (could just be a constant point!)
         """
-        self.ff = np.array([[9.81*1, 0]]).T
+        # self.ff = np.array([[9.81*1, 0]]).T
+        self.ff = np.vstack((np.ones((4, 1)) * 9.81 * 0.92 * 0.25, np.array([[0, 0, 0, 0]]).T)) #tiltrotor FF
         self.depthCam = depthCam
         super().__init__(observer, lyapunovBarrierList, trajectory)
     

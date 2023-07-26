@@ -165,8 +165,14 @@ class Dynamics:
             inputLabels ((singleInputDimn) length list of strings): Optional custom labels for the input plots
         """
         #get the shapes of the data to plot
-        xDataShape = xData.shape[0]//self.N
-        inputDataShape = uData.shape[0]//self.N
+        if xData is not None:
+            xDataShape = xData.shape[0]//self.N
+        else:
+            xDataShape = 0
+        if uData is not None:
+            inputDataShape = uData.shape[0]//self.N
+        else:
+            inputDataShape = 0
 
         #Plot each state variable in time
         fig, axs = plt.subplots(xDataShape + inputDataShape)
@@ -938,3 +944,241 @@ class Qrotor3D(Dynamics):
         num_frames = xData.shape[1]-1
         anim = animation.FuncAnimation(fig, update,  num_frames, fargs=(xData, lines), interval=1/FREQ*1000, blit=False)
         plt.show()
+
+class TiltRotor(Dynamics):
+    """
+    Class for tilt rotor drone based on rotation matrix dynamics
+    """
+    def __init__(self, x0 = np.vstack((np.zeros((3, 1)), np.eye(3).reshape((9, 1)), np.zeros((6, 1)))), m = 0.92, I = 0.0023*np.eye(3), l = 0.15, N = 1):
+        """
+        Init function for a 3D tiltrotor system. State vector is in R18.
+        Default state vector has zeros and identity for R.
+        State Vector: X = [x, y, z, r11, r12, r13, r21, r22, r23, r31, r32, r33, omegax, omegay, omegaz, xDot, yDot, xDot]
+        Input Vector: U = [T1, T2, T3, T4, Beta1, Beta2, Beta3, Beta4]
+        
+        Args:
+            x0 ((18 x 1) NumPy Array): initial state [x, y, z, r11, r12, r13, r21, r22, r23, r31, r32, r33, omegax, omegay, omegaz, xDot, yDot, xDot]
+            m (float): mass of quadrotor in kg
+            I ((3x3) NumPy Array): inertia tensor of quadrotor
+            l (float): length of one arm of quadrotor
+            N (int): number of quadrotors
+        """
+        #store physical parameters
+        self._m = m
+        self._I = I
+        self._g = 9.81
+        self._l = l
+
+        #store a reference to the inverse of the inertia
+        self.Iinv = np.linalg.inv(self._I)
+
+        #store geometric parameters
+        self.e3 = np.array([[0, 0, 1]]).T
+
+        #calculate the ri vectors assuming a square body
+        r1 = np.array([[l/np.sqrt(2), l/np.sqrt(2), 0]]).T
+        r2 = np.array([[-l/np.sqrt(2), l/np.sqrt(2), 0]]).T
+        r3 = np.array([[-l/np.sqrt(2), -l/np.sqrt(2), 0]]).T
+        r4 = np.array([[l/np.sqrt(2), -l/np.sqrt(2), 0]]).T
+
+        def calcABeta(beta):
+            """
+            Helper function to compute A(beta) matrix
+            This matrix maps from thrust vector to total force
+            """
+            #compute the rodrigues matrices
+            Rr1 = rodrigues(r1/np.linalg.norm(r1), beta[0, 0])
+            Rr2 = rodrigues(r2/np.linalg.norm(r2), beta[1, 0])
+            Rr3 = rodrigues(r3/np.linalg.norm(r3), beta[2, 0])
+            Rr4 = rodrigues(r4/np.linalg.norm(r4), beta[3, 0])
+
+            #form the matrix
+            return np.hstack((Rr1 @ self.e3, Rr2 @ self.e3, Rr3 @ self.e3, Rr4 @ self.e3))
+
+        def calcBBeta(beta):
+            """
+            Helper function to compute B matrix
+            """
+            #compute rHat matrix
+            rHat = np.hstack((hat_3d(r1), hat_3d(r2), hat_3d(r3), hat_3d(r4)))
+
+            #compute the rodrigues matrices
+            Rr1 = rodrigues(r1/np.linalg.norm(r1), beta[0, 0])
+            Rr2 = rodrigues(r2/np.linalg.norm(r2), beta[1, 0])
+            Rr3 = rodrigues(r3/np.linalg.norm(r3), beta[2, 0])
+            Rr4 = rodrigues(r4/np.linalg.norm(r4), beta[3, 0])
+
+            #compute rotation matrix term
+            row1 = np.hstack((Rr1 @ self.e3, np.zeros((3, 3))))
+            row2 = np.hstack((np.zeros((3, 1)), Rr2 @ self.e3, np.zeros((3, 2))))
+            row3 = np.hstack((np.zeros((3, 2)), Rr3 @ self.e3, np.zeros((3, 1))))
+            row4 = np.hstack((np.zeros((3, 3)), Rr4 @ self.e3))
+            Rterm = np.vstack((row1, row2, row3, row4))
+
+            #return the product
+            return rHat @ Rterm
+
+        #define quadrotor dynamics
+        def quadrotor_dyn(X, U, t):
+            """
+            Returns the derivative of the state vector
+            Args:
+                X (18 x 1 numpy array): current state vector at time t
+                U (8 x 1 numpy array): current input vector at time t
+                t (float): current time with respect to simulation start
+            Returns:
+                xDot: state_dimn x 1 derivative of the state vector
+            """
+            #unpack the input vector into thrusts and angles
+            T, BETA = U[0:4, :].reshape((4, 1)), U[4:, ].reshape((4, 1))
+
+            #Compute force and moment using the linear maps
+            F = calcABeta(BETA) @ T
+            M = calcBBeta(BETA) @ T
+
+            #unpack the state vector
+            xDot = X[15:, 0].reshape((3, 1)) #get spatial velocity
+            omega = X[12:15, 0].reshape((3, 1)) #angular velocity vector
+            omegaHat = hat(omega) #hat map of omega
+            R = X[3:12].reshape((3, 3)) #rotation matrix
+
+            #compute the derivatives
+            RDot = R @ omegaHat
+            omegaDot = self.Iinv @ (M - omegaHat @ self._I @ omega)
+            xDDot = R @ F - self._m * self._g * self.e3
+
+            #unpack RDot into a vector
+            RDotVec = RDot.reshape((9, 1))
+            
+            #construct and return state vector        
+            return np.vstack((xDot, RDotVec, omegaDot, xDDot))
+        
+        #call the super init function
+        super().__init__(x0, 18, 8, quadrotor_dyn, N = N)
+
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        Qrotor3D.print_params(self)
+
+    def return_params(self):
+        """
+        Returns the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        Returns:
+            self._m, self._Ixx, self._g, self._l
+        """
+        return Qrotor3D.return_params(self)
+    
+    def show_plots(self, xData, uData, tData, obsManager = None):
+        #Plot each state variable in time
+        stateLabels = ['X Pos (m)', 'Y Pos (m)', 'Z Pos (m)', 'X Vel (m/s)', 'Y Vel (m/s)', 'Z Vel (m/s)']
+        inputLabels = ['T1', 'T2', 'T3', 'T4', 'B1', 'B2', 'B3', 'B4']
+
+        #Only plot XYZ position and velocity from the states
+        pos = xData[0:3, :]
+        vel = xData[15:, :]
+        xDataPlot = np.vstack((pos, vel))
+        super().show_plots(xDataPlot, None, tData, stateLabels, None)
+
+        #now, call the input data plot
+        super().show_plots(None, uData, tData, None, inputLabels)
+
+        #Now, plot the 3D trajectory and obstacles
+        x = pos[0, :].tolist()
+        y = pos[1, :].tolist()
+        z = pos[2, :].tolist()
+        ax = plt.figure().add_subplot(projection='3d')
+
+        ax.plot(x, y, z)
+        #plot the obstacles if present
+        if obsManager is not None:
+            #plot the circular obstacles
+            for i in range(obsManager.NumObs):
+                #get the obstacle 
+                obsI = obsManager.get_obstacle_i(i)
+                center = obsI.get_center()
+                radius = obsI.get_radius()
+                
+                #get a grid of points
+                u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:20j]
+                x = center[0, 0] + radius * np.cos(u) * np.sin(v)
+                y = center[1, 0] + radius * np.sin(u) * np.sin(v)
+                z = center[2, 0] + radius * np.cos(v)
+
+                #plot the 3D surface on the axes
+                ax.plot_surface(x, y, z, cmap=plt.cm.viridis, linewidth=0)
+        
+        #set axis limits
+        ax.set_xlim3d([-0.5, 2])
+        ax.set_xlabel('X')
+        ax.set_ylim3d([-0.5, 2])
+        ax.set_ylabel('Y')
+        ax.set_zlim3d([0, 2.5])
+        ax.set_zlabel('Z')
+
+        #plot the 3d trajectory
+        plt.title("Quadrotor Trajectory")
+        plt.show()
+
+    def show_animation(self, xData, uData, tData, animate = True, obsManager = None):
+        return Qrotor3D.show_animation(self, xData, uData, tData, animate, obsManager)
+
+# class TiltRotorEuler(Dynamics):
+#     """
+#     Class for tilt rotor drone based on Euler angle dynamics.
+#     """
+#     def __init__(self, x0 = np.zeros((16, 1)), m = 0.92, I = 0.0023*np.eye(3), l = 0.15, N = 1):
+#         #store physical parameters
+#         self._m = m
+#         self._I = I
+#         self._g = 9.81
+#         self._l = l
+
+#         #store a reference to the inverse of the inertia
+#         self.Iinv = np.linalg.inv(self._I)
+
+#         #store geometric parameters
+#         self.e3 = np.array([[0, 0, 1]]).T
+
+#         #define quadrotor dynamics
+#         def quadrotor_dyn(X, U, t):
+#             """
+#             Returns the derivative of the state vector
+#             Args:
+#                 X (16 x 1 numpy array): current state vector at time t
+#                 U (4 x 1 numpy array): current input vector at time t
+#                 t (float): current time with respect to simulation start
+#             Returns:
+#                 xDot: state_dimn x 1 derivative of the state vector
+#             """
+#             phi = ...
+#             theta = ...
+#             p = ...
+#             r = ...
+#             q = ...
+#             T1 = ...
+#             T2 = ...
+#             T3 = ...
+#             T4 = ...
+#             beta1 = ...
+#             beta2 = ...
+#             beta3 = ...
+#             beta4 = ...
+#             phiDot = (p + r*np.cos(phi)*np.tan(phi) + q*np.sin(phi)*np.tan(theta))
+#             thetaDot = q*np.cos(phi) - r*np.sin(phi)
+#             gammaDot = r*np.cos(phi)/np.cos(theta) + q*np.sin(phi)/np.cos(theta)
+            
+#             #compute tiltrotor dynamics
+#             xbDDot = (-T1*np.sin(beta1) - T2*np.sin(beta2) + T3*np.sin(beta3) + T4*np.sin(beta4)*np.cos(np.pi/4) - m*g*np.sin(phi))/m
+#             ybDDot = (T1*np.sin(beta1) - T2*np.sin(beta2) - T3*np.sin(beta3) + T4*np.sin(beta4)*np.cos(np.pi/4)-m*g*np.sin(theta))/m
+#             zbDDot = (T1*np.cos(beta1)+T2*np.cos(beta2)+T4*np.cos(beta4)+T3*np.cos(beta3) - m*g*np.cos(theta)*np.cos(phi))/m
+#             pDot = (T1*np.cos(beta1)+T2*np.cos(beta2)-T3*np.cos(beta3) - T4*np.cos(beta4)/l)
+
+#             #NOTE: some terms in the dynamics don't seem to be defined here (ex: "tilt" and "tau")
+            
+        
+#         #call the super init function
+#         super().__init__(x0, 18, 4, quadrotor_dyn, N = N)

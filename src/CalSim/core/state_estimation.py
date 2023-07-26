@@ -230,8 +230,8 @@ class ObserverManager:
             elif isinstance(self.dynamics, PlanarQrotor):
                 #create a planar quadrotor observer
                 self.observerDict[i] = QuadObserver(dynamics, mean, sd, i)
-            elif isinstance(self.dynamics, Qrotor3D):
-                #create a 3D quadrotor observer
+            elif isinstance(self.dynamics, Qrotor3D) or isinstance(self.dynamics, TiltRotor):
+                #create a 3D quadrotor observer for a 3d quad or tiltrotor
                 self.observerDict[i] = Quad3DObserver(dynamics, mean, sd, i)
             else:
                 #create a standard state observer

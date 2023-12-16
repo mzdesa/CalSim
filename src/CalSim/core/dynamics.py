@@ -38,6 +38,9 @@ class Dynamics:
         self._x = x0
         self._u = np.zeros((self.sysInputDimn, 1))
 
+        #Store if the system is discrete. Set to be false by default.
+        self.is_discrete = False
+
         #set the plotting style with seaborn
         sns.set_theme()
         sns.set_context("paper")
@@ -53,6 +56,12 @@ class Dynamics:
         Retrieve the state vector
         """
         return self._x
+    
+    def check_discrete(self):
+        """
+        Returns true if the system is discrete, false if not
+        """
+        return self.is_discrete
     
     def print_params(self):
         """
@@ -275,7 +284,41 @@ class Dynamics:
             plt.ylabel(labels[1])
             plt.title(labels[2])
             plt.show()
-    
+
+class DiscreteDynamics(Dynamics):
+    """
+    Init function for a discrete time dynamics class.
+    Has the form x(k+1) = f(x, u, k)
+    """
+    def __init__(self, x0, singleStateDimn, singleInputDimn, f, N = 1):
+        """
+        Initialize a dynamics object
+        Args:
+            x0 (N*stateDimn x 1 numpy array): (x01, x02, ..., x0N) Initial condition state vector for all N agents
+            stateDimn (int): dimension of state vector for a single agent
+            inputDimn (int): dimension of input vector for a single agent
+            f (python function): dynamics function in xDot = f(x, u, t) -> This is for a SINGLE instance
+            N (int): Number of "agents" in the system, i.e. how many instances we want running in parallel
+        """    
+        super().__init__(x0, singleStateDimn, singleInputDimn, f, N)
+
+        #override the discrete parameter
+        self.is_discrete = True
+
+    def integrate(self, u, t, dt, integrator = None):
+        """
+        Step the dynamics forward using a discrete time step. Here, the ``dt"
+        argument is ignored, and the function f is all that is used to step to x(k+1).
+        """
+        #get current deterministic state
+        x = self.get_state()
+
+        #update the stored deterministic state and input
+        self._x = self.deriv(x, u, t)
+        self._u = u
+
+        #return the next time step state
+        return self._x
     
 """
 **********************************
@@ -306,6 +349,29 @@ class DoubleIntegratorDyn(Dynamics):
         e.g. mass, gravitational acceleration, ...
         """
         print("Double Integrator Dynamics")
+
+class SimpleDiscrete(DiscreteDynamics):
+    """
+    Simple discrete dynamics, x(k+1) = x(k) + u(k)
+    """
+    def __init__(self, x0, N = 1):
+        #define the dynamics
+        def f(x, u, t):
+            """
+            Simple discrete time dynamics
+                x (1x1 NumPy array): state vector
+                u (1x1 NumPy array): input vector
+                t (float): current time
+            """
+            return x + u
+        super().__init__(x0, 1, 1, f, N = N)
+    
+    def print_params(self):
+        """
+        Prints the parameters of the dynamics object.
+        e.g. mass, gravitational acceleration, ...
+        """
+        print("Simple Discrete Dynamics")
 
 class MSDRamp(Dynamics):
     """

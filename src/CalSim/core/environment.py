@@ -1,6 +1,7 @@
 import numpy as np
 from .controller import ControllerManager, Controller
 from .state_estimation import ObserverManager
+from .dynamics import Dynamics, DiscreteDynamics
 
 class Environment:
     def __init__(self, dynamics, controller = None, observer = None, obstacleManager = None, T = 10):
@@ -41,11 +42,20 @@ class Environment:
         self.ptCloud = None #point cloud state as read by vision
         
         #Define simulation parameters
-        self.SIM_FREQ = 1000 #integration frequency in Hz
-        self.CONTROL_FREQ = 50 #control frequency in Hz
-        self.SIMS_PER_STEP = self.SIM_FREQ//self.CONTROL_FREQ
-        self.TOTAL_SIM_TIME = T #total simulation time in s
-        self.TOTAL_ITER = self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1 #total number of iterations
+        if not self.dynamics.check_discrete():
+            #If the dynamics are not discrete, set frequency params. as cont. time
+            self.SIM_FREQ = 1000 #integration frequency in Hz
+            self.CONTROL_FREQ = 50 #control frequency in Hz
+            self.SIMS_PER_STEP = self.SIM_FREQ//self.CONTROL_FREQ
+            self.TOTAL_SIM_TIME = T #total simulation time in s
+            self.TOTAL_ITER = self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1 #total number of iterations
+        else:
+            #if dynamics are discrete, set the frequency to be 1 (1 time step)
+            self.SIM_FREQ = 1
+            self.CONTROL_FREQ = 1
+            self.SIMS_PER_STEP = 1
+            self.TOTAL_SIM_TIME = T #T now represents total sime time
+            self.TOTAL_ITER = self.TOTAL_SIM_TIME*self.CONTROL_FREQ + 1 #total number of iterations
         
         #Define history arrays
         self.xHist = np.zeros((self.dynamics.sysStateDimn, self.TOTAL_ITER))

@@ -7,6 +7,9 @@ import seaborn as sns
 #import utils from transforms.py
 from .transforms import *
 
+#import hybrid domain class
+from .hybrid_domain import *
+
 class Dynamics:
     """
     Skeleton class for system dynamics
@@ -40,6 +43,7 @@ class Dynamics:
 
         #Store if the system is discrete. Set to be false by default.
         self.is_discrete = False
+        self.is_hybrid = False
 
         #set the plotting style with seaborn
         sns.set_theme()
@@ -62,6 +66,12 @@ class Dynamics:
         Returns true if the system is discrete, false if not
         """
         return self.is_discrete
+    
+    def check_hybrid(self):
+        """
+        Returns true if the system is discrete, false if not
+        """
+        return self.is_hybrid
     
     def print_params(self):
         """
@@ -319,6 +329,98 @@ class DiscreteDynamics(Dynamics):
 
         #return the next time step state
         return self._x
+    
+
+class HybridDynamics(Dynamics):
+    """
+    Hybrid Dynamics Class
+    """
+    def __init__(self, x0, singleStateDimn, singleInputDimn, domainList, N = 1):
+        """
+        Initialize a dynamics object
+        Args:
+            x0 (N*stateDimn x 1 numpy array): (x01, x02, ..., x0N) Initial condition state vector for all N agents
+            stateDimn (int): dimension of state vector for a single agent
+            inputDimn (int): dimension of input vector for a single agent
+            f (python function): dynamics function in xDot = f(x, u, t) -> This is for a SINGLE instance
+            N (int): Number of "agents" in the system, i.e. how many instances we want running in parallel
+        """
+        #call the super init function with NONE for f
+        super().__init__(x0, singleStateDimn, singleInputDimn, None, N)
+
+        #override the hybrid parameter
+        self.is_hybrid = True
+
+        #Extract the indices of the different subsystems
+        indexList = [Di.get_index() for Di in domainList]
+
+        #Store the domains in a dictionary indexed by the domain index
+        self.domainDict = {k:v for (k, v) in zip(indexList, domainList)}
+
+        #store the current domain -> initialize as the first domain in the index list
+        self.Di = self.domainDict[indexList[0]]
+
+    def deriv(self, x, u, t):
+        """
+        Returns the derivative of the state vector for the extended system
+        Args:
+            x (sysStateDimn x 1 numpy array): current state vector at time t
+            u (sysInputDimn x 1 numpy array): current input vector at time t
+            t (float): current time with respect to simulation start
+        Returns:
+            xDot: state_dimn x 1 derivative of the state vector
+        """
+        #assemble the derivative vector for the entire system
+        xDot = np.zeros((self.sysStateDimn, 1))
+        for i in range(self.N):
+            #define slicing indices
+            stateSlice0 = self.singleStateDimn * i
+            stateSlice1 = self.singleStateDimn * (i + 1)
+            inputSlice0 = self.singleInputDimn * i
+            inputSlice1 = self.singleInputDimn * (i + 1)
+
+            #extract the state and input of the ith agent
+            xi = x[stateSlice0  : stateSlice1, 0].reshape((self.singleStateDimn, 1))
+            ui = u[inputSlice0 : inputSlice1, 0].reshape((self.singleInputDimn, 1))
+            
+            #compute the derivative of the ith agent's state vector -> NOTE: USES the current domain's dynaics
+            xDot[stateSlice0 : stateSlice1, 0] = self.Di.f(xi, ui, t).reshape((self.singleStateDimn, ))
+
+        #return the assembled derivative vector
+        return xDot
+
+    def integrate(self, u, t, dt, integrator = 'rk4'):
+        """
+        Step the dynamics forward using a discrete time step. Here, the ``dt"
+        argument is ignored, and the function f is all that is used to step to x(k+1).
+        """
+        #get current deterministic state
+        x = self.get_state()
+
+        #check for domain switch using the guards
+        for i in range(len(self.Di.SList)):
+            #extract the guard function from the SList of the current domain
+            s = self.Di.SList[i]
+
+            #Check if the guard condition is met
+            if s(x, u, t):
+                #Update state and index of new domain -> This should be the INTERNAL domain index
+                self._x, newInd = self.Di.DeltaList[i](x, u, t)
+
+                #update the stored input
+                self._u = u
+
+                #Switch to new domain domain using the new index -> call the corresonding domain from the dict
+                self.Di = self.domainDict[newInd]
+
+                #return the new post-hybrid-transition state
+                return self._x
+
+        #update the stored deterministic state and input
+        if integrator == "rk4":
+            return self.rk4_integrate(u, t, dt)
+        else:
+            return self.euler_integrate(u, t, dt)
     
 """
 **********************************
@@ -1192,59 +1294,171 @@ class TiltRotor(Dynamics):
     def show_animation(self, xData, uData, tData, animate = True, obsManager = None):
         return Qrotor3D.show_animation(self, xData, uData, tData, animate, obsManager)
 
-# class TiltRotorEuler(Dynamics):
-#     """
-#     Class for tilt rotor drone based on Euler angle dynamics.
-#     """
-#     def __init__(self, x0 = np.zeros((16, 1)), m = 0.92, I = 0.0023*np.eye(3), l = 0.15, N = 1):
-#         #store physical parameters
-#         self._m = m
-#         self._I = I
-#         self._g = 9.81
-#         self._l = l
+class BouncingBall(HybridDynamics):
+    """
+    Bouncing ball hybrid system
+    """
+    def __init__(self, x0, N=1):
+        """
+        Init function for a bouncing ball
+        """
+        #define spatial parameters
+        self.g = 9.81 #graviational acceleration
+        self.e = 0.9 #coefficient of restitution
 
-#         #store a reference to the inverse of the inertia
-#         self.Iinv = np.linalg.inv(self._I)
+        #define tolerance for guard condition
+        self.guardTol = 0.001
 
-#         #store geometric parameters
-#         self.e3 = np.array([[0, 0, 1]]).T
-
-#         #define quadrotor dynamics
-#         def quadrotor_dyn(X, U, t):
-#             """
-#             Returns the derivative of the state vector
-#             Args:
-#                 X (16 x 1 numpy array): current state vector at time t
-#                 U (4 x 1 numpy array): current input vector at time t
-#                 t (float): current time with respect to simulation start
-#             Returns:
-#                 xDot: state_dimn x 1 derivative of the state vector
-#             """
-#             phi = ...
-#             theta = ...
-#             p = ...
-#             r = ...
-#             q = ...
-#             T1 = ...
-#             T2 = ...
-#             T3 = ...
-#             T4 = ...
-#             beta1 = ...
-#             beta2 = ...
-#             beta3 = ...
-#             beta4 = ...
-#             phiDot = (p + r*np.cos(phi)*np.tan(phi) + q*np.sin(phi)*np.tan(theta))
-#             thetaDot = q*np.cos(phi) - r*np.sin(phi)
-#             gammaDot = r*np.cos(phi)/np.cos(theta) + q*np.sin(phi)/np.cos(theta)
-            
-#             #compute tiltrotor dynamics
-#             xbDDot = (-T1*np.sin(beta1) - T2*np.sin(beta2) + T3*np.sin(beta3) + T4*np.sin(beta4)*np.cos(np.pi/4) - m*g*np.sin(phi))/m
-#             ybDDot = (T1*np.sin(beta1) - T2*np.sin(beta2) - T3*np.sin(beta3) + T4*np.sin(beta4)*np.cos(np.pi/4)-m*g*np.sin(theta))/m
-#             zbDDot = (T1*np.cos(beta1)+T2*np.cos(beta2)+T4*np.cos(beta4)+T3*np.cos(beta3) - m*g*np.cos(theta)*np.cos(phi))/m
-#             pDot = (T1*np.cos(beta1)+T2*np.cos(beta2)-T3*np.cos(beta3) - T4*np.cos(beta4)/l)
-
-#             #NOTE: some terms in the dynamics don't seem to be defined here (ex: "tilt" and "tau")
-            
+        #Define continuous dynamics function
+        def f0(x, u, t):
+            """
+            Dynamics function for bouncing ball
+            Inputs:
+                x (2x1 NumPy Array): State Vector
+                u (0x0): Input Vector (not used)
+                t (float): time
+            """
+            return np.array([[x[1, 0], -self.g]]).T
         
-#         #call the super init function
-#         super().__init__(x0, 18, 4, quadrotor_dyn, N = N)
+        #Define guard for state 0
+        def s0(x, u, t):
+            """
+            Guard function for continuous phase of bouncing ball
+            NOTE: We use a tolerance on the exact condition here!
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (Unused)
+                t (Unused)
+            Returns:
+                True or False: Guard condition met or not
+            """
+            if abs(x[0, 0]) <= self.guardTol and x[1, 0] <= 0:
+                return True
+            else:
+                return False
+        
+        #Define transition map for state 0
+        def delta0(x, u, t):
+            """
+            Transition map for delta 1. Returns to state 0.
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (unused)
+                t (unused)
+            Returns:
+                x+ (2x1 NumPy Array): state after transition
+                nextIndex (Integer): index after transition
+            """
+            #flip velocity, multiply by coeff of restitution, and return to DOMAIN 0
+            return np.array([[x[0, 0], -self.e * x[1, 0]]]).T, 0
+
+        #Create a Hybrid Domain object
+        domainList = [HybridDomain(f0, [s0], [delta0], 0)]
+
+        #Call the Super init function
+        super().__init__(x0, singleStateDimn = 2, singleInputDimn = 0, domainList = domainList, N = 1)
+
+class SimpleTwoDomainHybrid(HybridDynamics):
+    """
+    Simple Two-Domain Hybrid System
+    """
+    def __init__(self, x0, N=1):
+        """
+        Init function for a bouncing ball
+        """
+        #define spatial parameters
+        self.g = 9.81 #graviational acceleration
+        self.e = 0.7 #0.9 #coefficient of restitution
+
+        #define tolerance for guard condition
+        self.guardTol = 0.004
+
+        #Define continuous dynamics function
+        def f0(x, u, t):
+            """
+            Dynamics function for accelerating down phase
+            Inputs:
+                x (2x1 NumPy Array): State Vector
+                u (0x0): Input Vector (not used)
+                t (float): time
+            """
+            return np.array([[x[1, 0], -self.g]]).T
+        
+        def f1(x, u, t):
+            """
+            Dynamics function for accelerating up phase
+            Inputs:
+                x (2x1 NumPy Array): State Vector
+                u (0x0): Input Vector (not used)
+                t (float): time
+            """
+            return np.array([[x[1, 0], self.g]]).T
+        
+        #Define guard for state 0
+        def s0(x, u, t):
+            """
+            Guard function for continuous phase of bouncing ball
+            NOTE: We use a tolerance on the exact condition here!
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (Unused)
+                t (Unused)
+            Returns:
+                True or False: Guard condition met or not
+            """
+            if abs(x[0, 0]) <= self.guardTol and x[1, 0] <= 0:
+                return True
+            else:
+                return False
+            
+        #Define guard for state 1
+        def s1(x, u, t):
+            """
+            Guard function for continuous phase of bouncing ball
+            NOTE: We use a tolerance on the exact condition here!
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (Unused)
+                t (Unused)
+            Returns:
+                True or False: Guard condition met or not
+            """
+            if abs(x[0, 0] - 1) <= self.guardTol and x[1, 0] >= 0:
+                return True
+            else:
+                return False
+        
+        #Define transition map for state 0
+        def delta0(x, u, t):
+            """
+            Transition map for delta 1. Returns to state 0.
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (unused)
+                t (unused)
+            Returns:
+                x+ (2x1 NumPy Array): state after transition
+                nextIndex (Integer): index after transition
+            """
+            #flip velocity, multiply by coeff of restitution, and return to DOMAIN 0
+            return np.array([[x[0, 0], -self.e * x[1, 0]]]).T, 1
+        
+        def delta1(x, u, t):
+            """
+            Transition map for delta 1. Returns to state 0.
+            Inputs:
+                x (2x1 NumPy Array): State vector
+                u (unused)
+                t (unused)
+            Returns:
+                x+ (2x1 NumPy Array): state after transition
+                nextIndex (Integer): index after transition
+            """
+            #flip velocity, multiply by coeff of restitution, and return to DOMAIN 0
+            return np.array([[x[0, 0], -self.e * x[1, 0]]]).T, 0
+
+        #Create a Hybrid Domain object
+        domainList = [HybridDomain(f0, [s0], [delta0], 0), HybridDomain(f1, [s1], [delta1], 1)]
+
+        #Call the Super init function
+        super().__init__(x0, singleStateDimn = 2, singleInputDimn = 0, domainList = domainList, N = 1)

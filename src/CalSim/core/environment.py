@@ -88,7 +88,7 @@ class Environment:
         self._get_observation() #updates the observer
         
         #solve for the control input using the observed state
-        self.controller.eval_input(self.t)
+        self.controller.set_input(self.t)
 
         #update the deterministic system data, iterations, and history array
         self._update_data()
@@ -119,7 +119,6 @@ class Environment:
         Useful for debugging state information.
         """
         self.xObsv = self.observer.get_state()
-        # print("current orientation: ", self.observer.get_orient())
     
     def _get_reward(self):
         """

@@ -25,15 +25,23 @@ class Controller:
     
     def eval_input(self, t):
         """
-        Solve for and return control input
+        Solve for and return control input. This function is to be implemented by the user.
         Inputs:
             t (float): time in simulation
         Returns:
             u ((Dynamics.singleInputDimn x 1)): input vector, as determined by controller
         """
-        self._u = np.zeros((self.observer.singleInputDimn, 1))
-        return self._u
+        return np.zeros((self.observer.singleInputDimn, 1))
     
+    def set_input(self, t):
+        """
+        Sets the input parameter at time t by calling eval_input
+        Inputs:
+            u ((Dynamics.singleInputDimn x 1)): input vector
+        """
+        self._u = self.eval_input(t)
+        return self._u
+
     def get_input(self):
         """
         Retrieves input stored in class parameter
@@ -55,12 +63,12 @@ class FFController(Controller):
             lyapunov (List of LyapunovBarrier): list of LyapunovBarrier objects
             trajectory (Trajectory): trajectory for the controller to track (could just be a constant point!)
         """
-        # self.ff = np.array([[9.81*1, 0]]).T
+        self.ff = np.array([[9.81*1, 0]]).T
         # self.ff = np.vstack((np.ones((4, 1)) * 9.81 * 0.92 * 0.25, np.array([[0, 0, 0, 0]]).T)) #tiltrotor FF
-        self.ff = np.array([[1]])
+        # self.ff = np.array([[1]])
         self.depthCam = depthCam
         super().__init__(observer, lyapunovBarrierList, trajectory)
-    
+
     def eval_input(self, t):
         """
         Solve for and return control input
@@ -69,12 +77,11 @@ class FFController(Controller):
         Returns:
             u ((Dynamics.singleInputDimn x 1)): input vector, as determined by controller
         """
+        # print("called")
         if self.depthCam is not None:
             #test the depth camera
             self.depthCam.get_pointcloud()
-
-        self._u = self.ff
-        return self._u
+        return self.ff
 
 class ControllerManager(Controller):
     def __init__(self, observerManager, ControlType, barrierManager = None, trajectoryManager = None, depthManager = None):
@@ -154,7 +161,8 @@ class ControllerManager(Controller):
         #loop over the system to find the input to each agent
         for i in range(self.N):
             #solve for the latest input to agent i, store the input in the u vector
-            self.controllerDict[i].eval_input(t)
+            # self.controllerDict[i].eval_input(t)
+            self.controllerDict[i].set_input(t)
             u[singleInputDimn*i : singleInputDimn*(i + 1)] = self.controllerDict[i].get_input()
 
         #store the u vector in self._u

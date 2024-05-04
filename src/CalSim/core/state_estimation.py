@@ -205,13 +205,14 @@ class Quad3DObserver(StateObserver):
     
     
 class ObserverManager:
-    def __init__(self, dynamics, mean = None, sd = None):
+    def __init__(self, dynamics, mean = None, sd = None, ObserverClass = None):
         """
         Managerial class to manage the observers for a system of N turtlebots
         Args:
             dynamics (Dynamics): Dynamics object instance
             mean (float, optional): Mean for gaussian noise. Defaults to None.
             sd (float, optional): standard deviation for gaussian noise. Defaults to None.
+            ObserverClass (StateObserver Class): Custom Observer Class, Inherits from StateObserver
         """
         #store the input parameters
         self.dynamics = dynamics
@@ -233,6 +234,8 @@ class ObserverManager:
             elif isinstance(self.dynamics, Qrotor3D) or isinstance(self.dynamics, TiltRotor):
                 #create a 3D quadrotor observer for a 3d quad or tiltrotor
                 self.observerDict[i] = Quad3DObserver(dynamics, mean, sd, i)
+            elif ObserverClass is not None:
+                self.observerDict[i] = ObserverClass(dynamics, mean, sd, i)
             else:
                 #create a standard state observer
                 self.observerDict[i] = StateObserver(dynamics, mean, sd, i)
